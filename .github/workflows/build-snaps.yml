@@ -1,4 +1,4 @@
-name: Build Snaps
+name: Build & Publish
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -27,11 +29,21 @@ jobs:
         # build.js copies sources, generates snapcraft.yaml, and runs npm install,
         # then attempts snapcraft which will fail here — that's expected
 
+      - name: Build deb with electron-builder
+        working-directory: build/${{ matrix.app }}
+        run: npx electron-builder --linux deb --publish never
+
       - name: Build snap
         uses: snapcore/action-build@v1
         id: snap
         with:
           path: build/${{ matrix.app }}
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-deb
+          path: build/${{ matrix.app }}/dist/*.deb
 
       - name: Upload snap artifact
         uses: actions/upload-artifact@v4
@@ -39,29 +51,84 @@ jobs:
           name: ${{ matrix.app }}-snap
           path: ${{ steps.snap.outputs.snap }}
 
-  release:
+  release-and-apt:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download all snap artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: snaps
+          path: artifacts
           merge-multiple: true
 
       - name: Generate release tag
         id: tag
         run: echo "tag=build-$(date +'%Y%m%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - name: Create release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Build ${{ steps.tag.outputs.tag }}
           body: |
-            Automated snap build from commit ${{ github.sha }}
-          files: snaps/*.snap
+            Automated build from commit ${{ github.sha }}
+
+            **Install via APT (recommended):**
+            ```bash
+            curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
+            echo "deb [signed-by=/usr/share/keyrings/klr-office-wrappers.gpg] https://kilurion.github.io/klr.office.wrappers stable main" | sudo tee /etc/apt/sources.list.d/klr-office-wrappers.list
+            sudo apt update
+            sudo apt install outlook-ew teams-ew
+            ```
+          files: artifacts/*
           make_latest: true
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Build APT repository
+        run: |
+          mkdir -p apt-repo/pool/main
+          mkdir -p apt-repo/dists/stable/main/binary-amd64
+
+          # Copy all .deb files to the pool
+          cp artifacts/*.deb apt-repo/pool/main/
+
+          # Generate Packages file
+          cd apt-repo
+          dpkg-scanpackages pool/main /dev/null > dists/stable/main/binary-amd64/Packages
+          gzip -k dists/stable/main/binary-amd64/Packages
+
+          # Generate Release file
+          cd dists/stable
+          cat > Release << EOF
+          Origin: klr-office-wrappers
+          Label: KLR Office Wrappers
+          Suite: stable
+          Codename: stable
+          Architectures: amd64
+          Components: main
+          Description: Microsoft app wrappers for Linux
+          EOF
+
+          # Add hashes to Release
+          apt-ftparchive release . >> Release
+
+          # Sign Release file
+          gpg --batch --yes --armor --detach-sign -o Release.gpg Release
+          gpg --batch --yes --clearsign -o InRelease Release
+
+          # Export public key for users
+          cd ../..
+          gpg --batch --armor --export > gpg.key
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apt-repo
+          force_orphan: true

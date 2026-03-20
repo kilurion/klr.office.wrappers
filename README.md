@@ -28,11 +28,81 @@ Each wrapper has its own configuration and can be built and run independently.
 - Snapcraft (for building snap packages)
 
 ## Installation
+
+### Via APT (recommended)
+
+Add the KLR Office Wrappers repository and install with `apt`:
+
+```bash
+# Add the GPG key
+curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
+
+# Add the repository
+echo "deb [signed-by=/usr/share/keyrings/klr-office-wrappers.gpg] https://kilurion.github.io/klr.office.wrappers stable main" | sudo tee /etc/apt/sources.list.d/klr-office-wrappers.list
+
+# Install
+sudo apt update
+sudo apt install outlook-ew teams-ew
+```
+
+Updates are delivered automatically via `sudo apt update && sudo apt upgrade`.
+
+### From GitHub Releases
+
+Download the latest `.deb` or `.snap` from the [Releases page](https://github.com/kilurion/klr.office.wrappers/releases) and install manually:
+
+```bash
+# .deb
+sudo dpkg -i outlook-ew_*.deb
+sudo dpkg -i teams-ew_*.deb
+
+# .snap
+sudo snap install ./teams-ew_*.snap --dangerous
+sudo snap install ./outlook-ew_*.snap --dangerous
+```
+
+### From Source
+
 Clone the repository and install dependencies:
-``` bash
-    git clone https://github.com/0xfcmartins/teams-ew.git
-    cd teams-ew
-    npm install
+```bash
+git clone https://github.com/kilurion/klr.office.wrappers.git
+cd klr.office.wrappers
+npm install
+```
+
+## Multiple Accounts
+
+You can run multiple instances of the same app with separate profiles by using the `--user-data-dir` and `--class` flags:
+
+```bash
+# Default instance
+teams-ew
+
+# Second account
+teams-ew --user-data-dir=$HOME/.config/teams-ew-account2 --class=teams-account2
+
+# Third account
+teams-ew --user-data-dir=$HOME/.config/teams-ew-account3 --class=teams-account3
+```
+
+The `--class` flag gives each instance a unique window class so your desktop environment treats them as separate applications (separate taskbar entries, etc.).
+
+You can create a `.desktop` file for each account. For example, save this as `~/.local/share/applications/teams-account2.desktop`:
+
+```ini
+[Desktop Entry]
+Name=Teams (Account 2)
+Exec=teams-ew --user-data-dir=%h/.config/teams-ew-account2 --class=teams-account2 %U
+Icon=teams-ew
+Type=Application
+Categories=Network;Office;
+StartupWMClass=teams-account2
+```
+
+This works the same way for Outlook:
+
+```bash
+outlook-ew --user-data-dir=$HOME/.config/outlook-ew-account2 --class=outlook-account2
 ```
 ## Available Scripts
 ### Development Mode
