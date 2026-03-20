@@ -20,6 +20,7 @@
   "build": {
     "appId": "pt.fcmartins.outlook-ew",
     "productName": "Microsoft Outlook",
+    "executableName": "outlook-ew",
     "linux": {
       "target": [
         "snap",

@@ -20,6 +20,7 @@
   "build": {
     "appId": "pt.fcmartins.teams-ew",
     "productName": "Microsoft Teams",
+    "executableName": "teams-ew",
     "linux": {
       "target": [
         "snap",
