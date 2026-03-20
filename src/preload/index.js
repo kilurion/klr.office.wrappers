@@ -239,74 +239,41 @@ contextBridge.exposeInMainWorld('electron', {
       }
       setInterval(checkTitle, 10000);
 
-      // Method 2: Watch for Outlook's in-page notification toasts and banners
-      // Outlook shows "new message" toasts, notification banners, and aria-live alerts
+      // Method 2: Watch for Outlook's in-page toast notifications via DOM
       function setupBodyObserver() {
-        const processedNodes = new WeakSet();
-
         const bodyObserver = new MutationObserver((mutations) => {
           for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
-              if (node.nodeType !== Node.ELEMENT_NODE || processedNodes.has(node)) continue;
-              processedNodes.add(node);
+              if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-              // Debug: log all meaningful added elements to figure out Outlook's toast DOM
-              const tag = node.tagName?.toLowerCase();
-              const cls = typeof node.className === 'string' ? node.className : '';
-              const role = node.getAttribute?.('role') || '';
+              // Check for aria-live announcements
               const ariaLive = node.getAttribute?.('aria-live') || '';
-              const text = node.textContent?.trim()?.substring(0, 200) || '';
-              
-              if (text.length > 3 && (
-                ariaLive === 'assertive' || ariaLive === 'polite' ||
-                role === 'alert' || role === 'status' ||
-                cls.match(/notif|toast/i)
-              )) {
-                console.log(`[Outlook DOM] tag=${tag} role=${role} aria-live=${ariaLive} class=${cls.substring(0, 100)} text=${text.substring(0, 150)}`);
-              }
-
-              // Check for aria-live announcements (Outlook uses these for new mail)
               if (ariaLive === 'assertive' || ariaLive === 'polite') {
                 const text = node.textContent?.trim();
                 if (text && text.length > 5 && text.length < 300) {
-                  console.log(`[Outlook] aria-live announcement: ${text}`);
-                  throttledSendNotification({
-                    title: 'Microsoft Outlook',
-                    body: text
-                  });
+                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
                   continue;
                 }
               }
 
-              // Check for notification toast containers (role="alert" or role="status")
+              // Check for role="alert" or role="status"
               const alertEl = node.matches?.('[role="alert"], [role="status"]')
-                ? node
-                : node.querySelector?.('[role="alert"], [role="status"]');
+                ? node : node.querySelector?.('[role="alert"], [role="status"]');
               if (alertEl) {
                 const text = alertEl.textContent?.trim();
                 if (text && text.length > 5 && text.length < 300) {
-                  console.log(`[Outlook] Alert/status element: ${text}`);
-                  throttledSendNotification({
-                    title: 'Microsoft Outlook',
-                    body: text
-                  });
+                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
                   continue;
                 }
               }
 
-              // Check for Outlook notification popover/toast by common class patterns
-              const toastEl = node.querySelector?.('[class*="notification" i], [class*="toast" i], [data-app-section*="notification" i]')
-                || (node.className && typeof node.className === 'string' &&
-                    (node.className.toLowerCase().includes('notification') || node.className.toLowerCase().includes('toast'))
-                    ? node : null);
-              if (toastEl) {
-                const text = toastEl.textContent?.trim();
+              // Check for Outlook notification toast button
+              const toastBtn = node.querySelector?.('button[aria-roledescription="Notification"]')
+                || (node.matches?.('button[aria-roledescription="Notification"]') ? node : null);
+              if (toastBtn) {
+                const text = toastBtn.textContent?.trim();
                 if (text && text.length > 5 && text.length < 300) {
-                  console.log(`[Outlook] Toast/notification element: ${text}`);
-                  throttledSendNotification({
-                    title: 'Microsoft Outlook',
-                    body: text
-                  });
+                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
                 }
               }
             }
@@ -317,7 +284,6 @@ contextBridge.exposeInMainWorld('electron', {
           childList: true,
           subtree: true
         });
-        console.log('✅ Outlook body MutationObserver active');
       }
 
       // Method 3: Intercept notification sound playback

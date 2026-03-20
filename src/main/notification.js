@@ -69,35 +69,6 @@ function setupNotifications(mainWindow, iconPath) {
     showAppNotification(data.title, data.body);
   });
 
-  // Main-process title monitoring — no IPC needed, works reliably on all platforms
-  // Watches for Outlook's "(N)" unread count pattern in the page title
-  if (mainWindow && mainWindow.webContents) {
-    let lastUnreadCount = -1;
-
-    mainWindow.webContents.on('page-title-updated', (event, title) => {
-      const match = title.match(/\((\d+)\)/);
-      const currentCount = match ? parseInt(match[1], 10) : 0;
-
-      if (lastUnreadCount === -1) {
-        lastUnreadCount = currentCount;
-        console.log(`[Notification] Initial unread count: ${currentCount}`);
-        return;
-      }
-
-      if (currentCount > lastUnreadCount) {
-        const newMessages = currentCount - lastUnreadCount;
-        console.log(`[Notification] Unread count changed: ${lastUnreadCount} → ${currentCount}`);
-        showAppNotification(
-          app.name || 'Microsoft Outlook',
-          `You have ${newMessages} new message${newMessages !== 1 ? 's' : ''}`
-        );
-      }
-      lastUnreadCount = currentCount;
-    });
-
-    console.log('[Notification] Main-process title observer active');
-  }
-
   console.log('Notification event loaded!');
 }
 

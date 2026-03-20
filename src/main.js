@@ -763,16 +763,6 @@ if (!gotTheLock) {
 
             setupNotifications(mainWindow, icon);
 
-            // Forward renderer console messages to main process stdout
-            mainWindow.webContents.on('console-message', (event, level, message) => {
-                console.log(`[Renderer] ${message}`);
-            });
-
-            // Listen for preload-executed to confirm preload loaded
-            ipcMain.on('preload-executed', () => {
-                console.log('[Main] Preload script executed successfully');
-            });
-
             setInterval(() => {
                 if (global.gc) {
                     global.gc();

@@ -1,5 +1,7 @@
 dist/
 out/
+build/
+temp/
 node_modules/
 .idea/
 /package-lock.json
