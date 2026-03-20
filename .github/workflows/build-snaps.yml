@@ -105,15 +105,15 @@ jobs:
 
           # Generate Release file
           cd dists/stable
-          cat > Release <<'EOF'
-Origin: klr-office-wrappers
-Label: KLR Office Wrappers
-Suite: stable
-Codename: stable
-Architectures: amd64
-Components: main
-Description: Microsoft app wrappers for Linux
-EOF
+          printf '%s\n' \
+            "Origin: klr-office-wrappers" \
+            "Label: KLR Office Wrappers" \
+            "Suite: stable" \
+            "Codename: stable" \
+            "Architectures: amd64" \
+            "Components: main" \
+            "Description: Microsoft app wrappers for Linux" \
+            > Release
 
           # Add hashes to Release
           apt-ftparchive release . >> Release
