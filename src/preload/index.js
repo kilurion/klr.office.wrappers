@@ -239,43 +239,53 @@ contextBridge.exposeInMainWorld('electron', {
       }
       setInterval(checkTitle, 10000);
 
-      // Method 2: Watch for Outlook's in-page toast notifications via DOM
+      // Method 2: Watch for Outlook's in-page alert-style notification toast
+      // Outlook renders: <button aria-roledescription="Notification" aria-label="New mail from ...">
+      // Structure (class names are obfuscated, so we use structural selectors):
+      //   button[aria-roledescription="Notification"]
+      //     div (avatar, has [role="img"])
+      //     div (content, aria-hidden="true")
+      //       div (sender row: sender name + button[title="Close"])
+      //       div (subject row: contains subject/preview text)
       function setupBodyObserver() {
         const bodyObserver = new MutationObserver((mutations) => {
           for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
               if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-              // Check for aria-live announcements
-              const ariaLive = node.getAttribute?.('aria-live') || '';
-              if (ariaLive === 'assertive' || ariaLive === 'polite') {
-                const text = node.textContent?.trim();
-                if (text && text.length > 5 && text.length < 300) {
-                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
-                  continue;
+              const btn = node.matches?.('button[aria-roledescription="Notification"]')
+                ? node
+                : node.querySelector?.('button[aria-roledescription="Notification"]');
+              if (!btn) continue;
+
+              // Sender from aria-label (stable accessibility attribute)
+              const ariaLabel = btn.getAttribute('aria-label') || '';
+              const senderMatch = ariaLabel.match(/^New mail from (.+)$/i);
+              const sender = senderMatch ? senderMatch[1] : '';
+
+              // Extract subject + preview using structural navigation (no class names)
+              // Button children: [avatar div (has [role="img"]), content div]
+              // Content div children: [sender row, subject/preview area...]
+              let subject = '';
+              const contentDiv = Array.from(btn.children).find(
+                el => !el.querySelector('[role="img"]') && el.getAttribute('aria-hidden') === 'true'
+              );
+              if (contentDiv && contentDiv.children.length > 1) {
+                // Skip first child (sender row), collect text from remaining children
+                const parts = [];
+                for (let i = 1; i < contentDiv.children.length; i++) {
+                  const t = contentDiv.children[i].textContent?.trim()
+                    .replace(/[\uE000-\uF8FF\uF000-\uFFFF]/g, '') // strip icon glyphs
+                    .trim();
+                  if (t) parts.push(t);
                 }
+                subject = parts.join(' — ');
               }
 
-              // Check for role="alert" or role="status"
-              const alertEl = node.matches?.('[role="alert"], [role="status"]')
-                ? node : node.querySelector?.('[role="alert"], [role="status"]');
-              if (alertEl) {
-                const text = alertEl.textContent?.trim();
-                if (text && text.length > 5 && text.length < 300) {
-                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
-                  continue;
-                }
-              }
+              const title = sender || 'New mail';
+              const body = subject || ariaLabel || 'You have a new message';
 
-              // Check for Outlook notification toast button
-              const toastBtn = node.querySelector?.('button[aria-roledescription="Notification"]')
-                || (node.matches?.('button[aria-roledescription="Notification"]') ? node : null);
-              if (toastBtn) {
-                const text = toastBtn.textContent?.trim();
-                if (text && text.length > 5 && text.length < 300) {
-                  throttledSendNotification({ title: 'Microsoft Outlook', body: text });
-                }
-              }
+              throttledSendNotification({ title: title, body: body });
             }
           }
         });

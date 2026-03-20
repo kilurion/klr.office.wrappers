@@ -763,6 +763,11 @@ if (!gotTheLock) {
 
             setupNotifications(mainWindow, icon);
 
+            // Temporary: forward renderer console for DOM diagnostics
+            mainWindow.webContents.on('console-message', (event, level, message) => {
+                if (message.includes('[Outlook')) console.log(`[R] ${message}`);
+            });
+
             setInterval(() => {
                 if (global.gc) {
                     global.gc();

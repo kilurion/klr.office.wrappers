@@ -1,0 +1,67 @@
+name: Build Snaps
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [teams, outlook]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Prepare build directory
+        run: node build.js ${{ matrix.app }} || true
+        # build.js copies sources, generates snapcraft.yaml, and runs npm install,
+        # then attempts snapcraft which will fail here — that's expected
+
+      - name: Build snap
+        uses: snapcore/action-build@v1
+        id: snap
+        with:
+          path: build/${{ matrix.app }}
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-snap
+          path: ${{ steps.snap.outputs.snap }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all snap artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: snaps
+          merge-multiple: true
+
+      - name: Generate release tag
+        id: tag
+        run: echo "tag=build-$(date +'%Y%m%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Build ${{ steps.tag.outputs.tag }}
+          body: |
+            Automated snap build from commit ${{ github.sha }}
+          files: snaps/*.snap
+          make_latest: true
