@@ -1,0 +1,11 @@
+[Desktop Entry]
+X-SnapInstanceName=outlook-klr
+Name=Outlook KLR
+X-SnapAppName=outlook-klr
+Exec=outlook-klr
+Terminal=false
+Type=Application
+Icon=${SNAP}/meta/gui/outlook-klr.png
+StartupWMClass=outlook-klr
+Comment=Microsoft Outlook wrapper for Kilurion (KLR)
+Categories=Network;Office;Email;

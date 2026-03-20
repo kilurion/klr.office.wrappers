@@ -12,7 +12,15 @@
     "build:spotify": "node build.js spotify",
     "dev:teams": "node dev-run.js teams",
     "dev:outlook": "node dev-run.js outlook",
-    "dev:spotify": "node dev-run.js spotify"
+    "dev:spotify": "node dev-run.js spotify",
+    "dev:teams-klr": "node dev-run.js teams-klr",
+    "dev:teams-e4u": "node dev-run.js teams-e4u",
+    "dev:outlook-klr": "node dev-run.js outlook-klr",
+    "dev:outlook-e4u": "node dev-run.js outlook-e4u",
+    "build:teams-klr": "node build.js teams-klr",
+    "build:teams-e4u": "node build.js teams-e4u",
+    "build:outlook-klr": "node build.js outlook-klr",
+    "build:outlook-e4u": "node build.js outlook-e4u"
   },
   "homepage": "https://github.com/0xfcmartins/teams-ew",
   "author": {

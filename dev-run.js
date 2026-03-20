@@ -49,7 +49,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json')
 fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify(packageJson, null, 2));
 
 console.log(`Running ${appName} in development mode...`);
-const electron = spawn('npx', ['electron', tempDir], { 
+const electron = spawn('npx', ['electron', '--no-sandbox', tempDir], { 
   stdio: 'inherit',
   env: {
     ...process.env,

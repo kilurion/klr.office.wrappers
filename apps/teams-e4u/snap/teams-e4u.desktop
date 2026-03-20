@@ -1,0 +1,11 @@
+[Desktop Entry]
+X-SnapInstanceName=teams-e4u
+Name=Teams E4U
+X-SnapAppName=teams-e4u
+Exec=teams-e4u
+Terminal=false
+Type=Application
+Icon=${SNAP}/meta/gui/teams-e4u.png
+StartupWMClass=teams-e4u
+Comment=Microsoft Teams wrapper for ERP4U (E4U)
+Categories=Office;

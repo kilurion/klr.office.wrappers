@@ -1,0 +1,21 @@
+{
+  "name": "Outlook E4U",
+  "url": "https://outlook.office.com/mail/",
+  "iconFile": "icon.png",
+  "trayIconFile": "tray.png",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+  "notifications": true,
+  "windowOptions": {
+    "width": 1200,
+    "height": 900,
+    "minWidth": 800,
+    "minHeight": 600
+  },
+  "permissions": [
+    "notifications", "media", "clipboard-read", "clipboard-write"
+  ],
+  "snapName": "outlook-e4u",
+  "snapDescription": "Microsoft Outlook wrapper for ERP4U (E4U)",
+  "desktopName": "Outlook E4U",
+  "desktopCategories": "Network;Office;Email;"
+}
