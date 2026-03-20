@@ -39,6 +39,7 @@ const allowedChannels = new Set([
   'selection-cancelled',
   
   // Notifications and user interaction
+  'new-notification',
   'play-notification-sound',
   'show-notification',
   'user-status-changed',
@@ -60,7 +61,8 @@ const allowedChannels = new Set([
   
   // Connection management
   'offline-retry',
-  'stop-sharing'
+  'stop-sharing',
+  'preload-executed'
 ]);
 
 /**

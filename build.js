@@ -112,7 +112,7 @@ try {
   // Try electron-builder as fallback
   console.log('Trying electron-builder as fallback...');
   try {
-    execSync('electron-builder --linux snap', { cwd: buildDir, stdio: 'inherit' });
+    execSync('npx electron-builder --linux snap', { cwd: buildDir, stdio: 'inherit' });
   } catch (builderError) {
     console.error('Electron-builder also failed:', builderError.message);
     process.exit(1);

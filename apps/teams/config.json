@@ -17,6 +17,8 @@
     "clipboard-write",
     "audio-record",
     "camera",
+    "display-capture",
+    "screen",
     "notifications",
     "storage",
     "activeTab",

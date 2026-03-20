@@ -7,11 +7,13 @@ title: {{DESKTOP_NAME}}
 
 grade: stable
 confinement: strict
-base: core22
+base: core24
+platforms:
+  amd64:
 
 apps:
     {{APP_NAME}}:
-      command: desktop-launch $SNAP/bin/electron $SNAP/main.js
+      command: bin/desktop-launch $SNAP/bin/electron $SNAP/main.js
       desktop: usr/share/applications/{{APP_NAME}}.desktop
       extensions: [gnome]
       environment:
@@ -51,31 +53,15 @@ parts:
   application:
     plugin: dump
     source: .
-    build-packages:
-      - npm
-    stage-packages:
-      - libnspr4
-      - libnss3
-      - libxss1
-      - libsecret-1-0
-      - libpulse0
-      - libgtk-3-0
-      - libicu70
-      - libxrandr2
-      - libasound2
-      - libxtst6
-      - libxcomposite1
-      - libxcursor1
-      - libxdamage1
-      - libxfixes3
-      - libxi6
-      - libatk-bridge2.0-0
-      - libdrm2
-      - libatspi2.0-0
-      - libgdk-pixbuf2.0-0
     override-build: |
-      snapcraftctl build
+      craftctl default
       mkdir -p $SNAPCRAFT_PART_INSTALL/app
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/share/applications
+      if [ -f snap/gui/{{APP_NAME}}.desktop ]; then
+        cp snap/gui/{{APP_NAME}}.desktop $SNAPCRAFT_PART_INSTALL/usr/share/applications/{{APP_NAME}}.desktop
+      elif [ -f snap/{{APP_NAME}}.desktop ]; then
+        cp snap/{{APP_NAME}}.desktop $SNAPCRAFT_PART_INSTALL/usr/share/applications/{{APP_NAME}}.desktop
+      fi
 
   electron:
     plugin: dump
@@ -101,7 +87,7 @@ parts:
       done
 
       cat > $SNAPCRAFT_PART_INSTALL/bin/desktop-launch << 'EOF'
-    #!/bin/bash
+      #!/bin/bash
       export LD_LIBRARY_PATH="$SNAP/usr/lib:$LD_LIBRARY_PATH"
       export ICU_DATA_DIR="$SNAP/usr/share/icu"
       
@@ -145,33 +131,3 @@ parts:
       - bin/v8_context_snapshot.bin
       - usr/lib/libffmpeg.so
       - usr/share/icu/icudtl.dat
-
-    icu-data:
-      plugin: nil
-      after: [electron]
-      override-build: |
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/share/icu
-        if [ -f "/usr/lib/chromium/icudtl.dat" ]; then
-            cp /usr/lib/chromium/icudtl.dat $SNAPCRAFT_PART_INSTALL/usr/share/icu/
-        fi
-      build-packages:
-        - chromium-common
-      prime:
-        - usr/share/icu/icudtl.dat
-
-    chromium-ffmpeg:
-      plugin: nil
-      after: [electron, icu-data]
-      override-build: |
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib
-        apt-get update
-        apt-get install -y chromium-codecs-ffmpeg-extra
-        if [ -f "/usr/lib/chromium-browser/libffmpeg.so" ]; then
-            cp /usr/lib/chromium-browser/libffmpeg.so $SNAPCRAFT_PART_INSTALL/usr/lib/
-        elif [ -f "/usr/lib/chromium/libffmpeg.so" ]; then
-            cp /usr/lib/chromium/libffmpeg.so $SNAPCRAFT_PART_INSTALL/usr/lib/
-        fi
-      build-packages:
-        - chromium-codecs-ffmpeg-extra
-      prime:
-        - usr/lib/libffmpeg.so

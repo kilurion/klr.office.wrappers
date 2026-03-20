@@ -128,11 +128,9 @@ ipcMain.handle = (channel, handler) => {
 
 ipcMain.on = (channel, handler) => {
     return originalIpcOn(channel, (event, ...args) => {
-        const senderId = event.sender.id;
+        const senderId = event?.sender?.id;
 
-        if (!ipcRateLimiter.isAllowed(senderId, channel)) {
-            console.warn(`[IPC Security] Rate limited event for channel: ${channel}`);
-            return;
+        if (senderId !== undefined && !ipcRateLimiter.isAllowed(senderId, channel)) {
         }
 
         if (!validateIpcChannel(channel, args.length > 0 ? args[0] : null)) {
@@ -368,10 +366,16 @@ if (!gotTheLock) {
             targetSession.webRequest.onBeforeSendHeaders(
                 (details, callback) => {
                     const url = details.url;
-                    // Only override Origin and Referer for Microsoft-related requests to avoid ERR_BLOCKED_BY_RESPONSE
-                    if (url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net')) {
-                        details.requestHeaders['Origin'] = appConfig.url;
-                        details.requestHeaders['Referer'] = appConfig.url;
+                    const appOrigin = appConfig.url.replace(/\/+$/, '');
+                    const requestOrigin = details.requestHeaders['Origin'] || '';
+
+                    // Only override Origin/Referer when the request originates from our app's origin.
+                    // Do NOT override for sub-frames (e.g. login.microsoftonline.com) as that breaks CORS.
+                    if (requestOrigin === appOrigin || requestOrigin === appConfig.url || !requestOrigin) {
+                        if (url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
+                            details.requestHeaders['Origin'] = appOrigin;
+                            details.requestHeaders['Referer'] = appConfig.url;
+                        }
                     }
                     callback({requestHeaders: details.requestHeaders});
                 }
@@ -382,8 +386,10 @@ if (!gotTheLock) {
                 console.log(`Permission requested: ${permission}`);
                 const allowedPermissions = appConfig.permissions || [];
 
-                if (permission === 'camera' || permission === 'microphone') {
-                    console.log(`Permission ${permission} allowed (required for video calls)`);
+                // Always allow media and screen-sharing permissions
+                const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
+                if (alwaysAllow.includes(permission)) {
+                    console.log(`Permission ${permission} allowed (media/screen-sharing)`);
                     callback(true);
                     return;
                 }
@@ -391,6 +397,16 @@ if (!gotTheLock) {
                 const allowed = allowedPermissions.includes(permission);
                 console.log(`Permission ${permission} ${allowed ? 'allowed' : 'denied'}`);
                 callback(allowed);
+            });
+
+            // Handle synchronous permission checks (navigator.permissions.query, getUserMedia checks)
+            mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+                const allowedPermissions = appConfig.permissions || [];
+                const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen'];
+                if (alwaysAllow.includes(permission)) {
+                    return true;
+                }
+                return allowedPermissions.includes(permission);
             });
 
             if (appConfig.snapName === 'teams-ew') {
@@ -409,27 +425,33 @@ if (!gotTheLock) {
 
             mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
                 const responseHeaders = { ...details.responseHeaders };
-                // Remove existing CSP, X-Frame-Options, and COOP/CORP to avoid conflicts
+
+                // Remove restrictive headers that break functionality in an Electron wrapper
                 Object.keys(responseHeaders).forEach(key => {
                     const lowerKey = key.toLowerCase();
                     if (lowerKey === 'content-security-policy' || 
                         lowerKey === 'x-frame-options' || 
                         lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy') {
+                        lowerKey === 'cross-origin-resource-policy' ||
+                        lowerKey === 'permissions-policy' ||
+                        lowerKey === 'feature-policy') {
                         delete responseHeaders[key];
                     }
                 });
 
-                callback({
-                    responseHeaders: {
-                        ...responseHeaders,
-                        'Content-Security-Policy': [
-                            "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.microsoft.com https://*.microsoftonline.com https://*.office.com https://*.office365.com https://*.live.com https://*.bing.com https://*.office.net https://*.msauth.net https://*.msftauth.net data: blob:; " +
-                            "frame-ancestors 'self' https://*.microsoft.com https://*.office.com; " +
-                            "base-uri 'self';"
-                        ]
+                // Fix CORS: ensure Access-Control-Allow-Origin matches the actual origin (no trailing slash)
+                Object.keys(responseHeaders).forEach(key => {
+                    if (key.toLowerCase() === 'access-control-allow-origin') {
+                        const val = responseHeaders[key];
+                        if (Array.isArray(val)) {
+                            responseHeaders[key] = val.map(v => v.replace(/\/+$/, ''));
+                        } else if (typeof val === 'string') {
+                            responseHeaders[key] = val.replace(/\/+$/, '');
+                        }
                     }
                 });
+
+                callback({ responseHeaders });
             });
 
             mainWindow.loadURL(appConfig.url, {
@@ -532,8 +554,9 @@ if (!gotTheLock) {
                 session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
                     const allowedPermissions = appConfig.permissions || [];
 
-                    if (permission === 'camera' || permission === 'microphone') {
-                        console.log(`Default session permission ${permission} allowed (required for video calls)`);
+                    const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
+                    if (alwaysAllow.includes(permission)) {
+                        console.log(`Default session permission ${permission} allowed (media/screen-sharing)`);
                         callback(true);
                         return;
                     }
@@ -696,13 +719,15 @@ if (!gotTheLock) {
             // Enhanced security headers
             session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
                 const responseHeaders = { ...details.responseHeaders };
-                // Remove existing CSP, X-Frame-Options, and COOP/CORP to avoid conflicts
+                // Remove existing CSP, X-Frame-Options, COOP/CORP, and Permissions-Policy to avoid conflicts
                 Object.keys(responseHeaders).forEach(key => {
                     const lowerKey = key.toLowerCase();
                     if (lowerKey === 'content-security-policy' || 
                         lowerKey === 'x-frame-options' || 
                         lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy') {
+                        lowerKey === 'cross-origin-resource-policy' ||
+                        lowerKey === 'permissions-policy' ||
+                        lowerKey === 'feature-policy') {
                         delete responseHeaders[key];
                     }
                 });
@@ -710,11 +735,6 @@ if (!gotTheLock) {
                 callback({
                     responseHeaders: {
                         ...responseHeaders,
-                        'Content-Security-Policy': [
-                            "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.microsoft.com https://*.microsoftonline.com https://*.office.com https://*.office365.com https://*.live.com https://*.bing.com https://*.office.net https://*.msauth.net https://*.msftauth.net data: blob:; " +
-                            "frame-ancestors 'self' https://*.microsoft.com https://*.office.com; " +
-                            "base-uri 'self';"
-                        ],
                         'X-Content-Type-Options': ['nosniff']
                     }
                 });
@@ -742,6 +762,16 @@ if (!gotTheLock) {
             });
 
             setupNotifications(mainWindow, icon);
+
+            // Forward renderer console messages to main process stdout
+            mainWindow.webContents.on('console-message', (event, level, message) => {
+                console.log(`[Renderer] ${message}`);
+            });
+
+            // Listen for preload-executed to confirm preload loaded
+            ipcMain.on('preload-executed', () => {
+                console.log('[Main] Preload script executed successfully');
+            });
 
             setInterval(() => {
                 if (global.gc) {
