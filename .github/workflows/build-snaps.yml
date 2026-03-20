@@ -78,7 +78,7 @@ jobs:
 
             **Install via APT (recommended):**
             ```bash
-            curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
+            curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
             echo "deb [signed-by=/usr/share/keyrings/klr-office-wrappers.gpg] https://kilurion.github.io/klr.office.wrappers stable main" | sudo tee /etc/apt/sources.list.d/klr-office-wrappers.list
             sudo apt update
             sudo apt install outlook-ew teams-ew

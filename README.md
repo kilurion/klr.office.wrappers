@@ -35,7 +35,7 @@ Add the KLR Office Wrappers repository and install with `apt`:
 
 ```bash
 # Add the GPG key
-curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
+curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
 
 # Add the repository
 echo "deb [signed-by=/usr/share/keyrings/klr-office-wrappers.gpg] https://kilurion.github.io/klr.office.wrappers stable main" | sudo tee /etc/apt/sources.list.d/klr-office-wrappers.list
