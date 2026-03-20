@@ -334,7 +334,82 @@ contextBridge.exposeInMainWorld('electron', {
       }
 
       setupAudioInterceptor();
-      console.log('✅ Outlook notification observers active (title + DOM + audio)');
+
+      // Calendar Reminder Observer — detect Outlook reminder notifications in NotificationPane
+      function setupCalendarReminderObserver() {
+        const notifiedReminders = new Set();
+
+        function checkForReminders(root) {
+          // Outlook renders reminders as div[remindertype] with subject/time attributes
+          const reminders = root.querySelectorAll
+            ? root.querySelectorAll('div[remindertype][subject]')
+            : [];
+
+          for (const reminder of reminders) {
+            const subject = reminder.getAttribute('subject') || '';
+            const startTime = reminder.getAttribute('starttimedisplaystring') || '';
+            const timeUntil = reminder.getAttribute('timeuntildisplaystring') || '';
+            const location = reminder.getAttribute('location') || '';
+            const reminderType = reminder.getAttribute('remindertype') || '';
+
+            // Build a dedup key from subject + start time
+            const dedupKey = `${subject}|${startTime}`;
+            if (!subject || notifiedReminders.has(dedupKey)) continue;
+
+            notifiedReminders.add(dedupKey);
+            // Clean up old entries after 2 hours
+            setTimeout(() => notifiedReminders.delete(dedupKey), 7200000);
+
+            const title = reminderType === 'Calendar'
+              ? `📅 ${subject}`
+              : `🔔 ${subject}`;
+
+            const bodyParts = [];
+            if (startTime) bodyParts.push(startTime);
+            if (timeUntil) bodyParts.push(`(${timeUntil})`);
+            if (location) bodyParts.push(`📍 ${location}`);
+
+            throttledSendNotification({
+              title,
+              body: bodyParts.join(' ') || 'Reminder'
+            });
+          }
+        }
+
+        const reminderObserver = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+              if (node.matches?.('div[remindertype][subject]')) {
+                checkForReminders(node.parentElement || node);
+              } else {
+                checkForReminders(node);
+              }
+            }
+          }
+        });
+
+        reminderObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        console.log('✅ Outlook calendar reminder observer active');
+      }
+
+      if (document.body) {
+        setupCalendarReminderObserver();
+      } else {
+        const waitBodyReminder = setInterval(() => {
+          if (document.body) {
+            clearInterval(waitBodyReminder);
+            setupCalendarReminderObserver();
+          }
+        }, 100);
+      }
+
+      setupAudioInterceptor();
+      console.log('✅ Outlook notification observers active (title + DOM + audio + calendar reminders)');
     }
 
     // Intercept page-world Notification API calls (catch-all for any web notifications)

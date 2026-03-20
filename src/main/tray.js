@@ -85,14 +85,10 @@ function buildTrayMenu(tray, mainWindow, state, updateMenuCallback) {
  * @param {BrowserWindow} mainWindow - The main application window
  */
 function handleTrayClick(mainWindow) {
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    mainWindow.show();
-    // Flash frame on Windows to get user attention
-    if (process.platform === 'win32') {
-      mainWindow.flashFrame(false);
-    }
+  mainWindow.show();
+  // Flash frame on Windows to get user attention
+  if (process.platform === 'win32') {
+    mainWindow.flashFrame(false);
   }
 }
 
