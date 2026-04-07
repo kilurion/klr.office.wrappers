@@ -372,7 +372,7 @@ if (!gotTheLock) {
                     // Only override Origin/Referer when the request originates from our app's origin.
                     // Do NOT override for sub-frames (e.g. login.microsoftonline.com) as that breaks CORS.
                     if (requestOrigin === appOrigin || requestOrigin === appConfig.url || !requestOrigin) {
-                        if (url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
+                        if (url.includes('cloud.microsoft') || url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
                             details.requestHeaders['Origin'] = appOrigin;
                             details.requestHeaders['Referer'] = appConfig.url;
                         }
@@ -386,10 +386,10 @@ if (!gotTheLock) {
                 console.log(`Permission requested: ${permission}`);
                 const allowedPermissions = appConfig.permissions || [];
 
-                // Always allow media and screen-sharing permissions
-                const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
+                // Always allow media, screen-sharing, and clipboard permissions
+                const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
                 if (alwaysAllow.includes(permission)) {
-                    console.log(`Permission ${permission} allowed (media/screen-sharing)`);
+                    console.log(`Permission ${permission} allowed (media/screen-sharing/clipboard)`);
                     callback(true);
                     return;
                 }
@@ -402,7 +402,7 @@ if (!gotTheLock) {
             // Handle synchronous permission checks (navigator.permissions.query, getUserMedia checks)
             mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
                 const allowedPermissions = appConfig.permissions || [];
-                const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen'];
+                const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
                 if (alwaysAllow.includes(permission)) {
                     return true;
                 }
@@ -614,22 +614,15 @@ if (!gotTheLock) {
 
     function setupDownloadHandler(window) {
         const targetSession = window ? window.webContents.session : session.defaultSession;
-        targetSession.on('will-download', async (event, item) => {
+        targetSession.on('will-download', (event, item) => {
             const fileName = item.getFilename();
             const totalBytes = item.getTotalBytes();
 
-            const {filePath, canceled} = await dialog.showSaveDialog({
+            item.setSaveDialogOptions({
                 title: 'Save Download',
                 defaultPath: path.join(app.getPath('downloads'), fileName)
             });
 
-            if (canceled || !filePath) {
-                item.cancel();
-                console.log('Download canceled by the user.');
-                return;
-            }
-
-            item.setSavePath(filePath);
             console.log(`Starting download of ${fileName}`);
 
             item.on('updated', (event, state) => {
@@ -642,7 +635,9 @@ if (!gotTheLock) {
 
             item.once('done', (event, state) => {
                 if (state === 'completed') {
-                    console.log(`Download saved to ${filePath}`);
+                    console.log(`Download saved to ${item.getSavePath()}`);
+                } else if (state === 'cancelled') {
+                    console.log('Download canceled by the user.');
                 } else {
                     console.error(`Download failed: ${state}`);
                 }
@@ -759,6 +754,14 @@ if (!gotTheLock) {
             await setupTray(mainWindow, {
                 name: appConfig.name,
                 iconPath: trayIcon
+            });
+
+            // Update tray tooltip when account info is detected
+            const { updateTrayTooltip } = require('./main/tray');
+            ipcMain.on('account-info-changed', (_event, data) => {
+                if (data && typeof data.name === 'string' && data.name.length > 0 && data.name.length < 200) {
+                    updateTrayTooltip(data.name);
+                }
             });
 
             setupNotifications(mainWindow, icon);

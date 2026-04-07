@@ -59,6 +59,9 @@ const allowedChannels = new Set([
   // Custom backgrounds
   'get-custom-bg-list',
   
+  // Account info
+  'account-info-changed',
+
   // Connection management
   'offline-retry',
   'stop-sharing',

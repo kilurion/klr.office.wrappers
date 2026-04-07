@@ -12,7 +12,7 @@ try {
     'resize-preview-window', 'minimize-preview-window', 'close-preview-window',
     'stop-screen-sharing-from-thumbnail', 'source-selected', 'selection-cancelled',
     'new-notification', 'play-notification-sound', 'show-notification',
-    'user-status-changed', 'set-badge-count', 'tray-update',
+    'user-status-changed', 'set-badge-count', 'tray-update', 'account-info-changed',
     'incoming-call-created', 'incoming-call-ended', 'incoming-call-action',
     'call-connected', 'call-disconnected',
     'submitForm', 'get-custom-bg-list', 'offline-retry', 'stop-sharing',
@@ -443,6 +443,75 @@ contextBridge.exposeInMainWorld('electron', {
       console.log('✅ Notification API interceptor injected');
     }
 
+    // Detect logged-in account email and send to main process for tray tooltip
+    function setupAccountDetection() {
+      let lastAccountEmail = '';
+
+      function detectAccountEmail() {
+        let email = '';
+
+        // Method 1: Me control account panel — email is shown in #mectrl_currentAccount_secondary
+        const secondaryEl = document.querySelector('#mectrl_currentAccount_secondary');
+        if (secondaryEl) {
+          const text = secondaryEl.textContent.trim();
+          if (text.includes('@')) email = text;
+        }
+
+        // Method 2: "View account" link contains login_hint=email in its href
+        if (!email) {
+          const viewAccount = document.querySelector('#mectrl_viewAccount');
+          if (viewAccount) {
+            try {
+              const href = viewAccount.getAttribute('href') || '';
+              const url = new URL(href);
+              const hint = url.searchParams.get('login_hint') || '';
+              if (hint.includes('@')) email = hint;
+            } catch (_) { /* invalid URL, skip */ }
+          }
+        }
+
+        // Method 3: MSAL cache in sessionStorage / localStorage
+        if (!email) {
+          for (const storage of [sessionStorage, localStorage]) {
+            if (email) break;
+            try {
+              for (let i = 0; i < storage.length; i++) {
+                const key = storage.key(i);
+                if (!key) continue;
+                if (key.includes('account') || key.includes('login.windows.net')) {
+                  try {
+                    const val = JSON.parse(storage.getItem(key));
+                    const candidate = val.username || val.preferred_username || val.upn || '';
+                    if (candidate.includes('@')) {
+                      email = candidate;
+                      break;
+                    }
+                  } catch (_) { /* not JSON, skip */ }
+                }
+              }
+            } catch (_) { /* storage access denied, skip */ }
+          }
+        }
+
+        if (email && email !== lastAccountEmail) {
+          lastAccountEmail = email;
+          console.log(`[Account] Detected account email: ${email}`);
+          send('account-info-changed', { name: email });
+        }
+      }
+
+      // Check periodically until found, then less frequently
+      const quickInterval = setInterval(() => {
+        detectAccountEmail();
+        if (lastAccountEmail) {
+          clearInterval(quickInterval);
+          // Re-check occasionally in case of account switch
+          setInterval(detectAccountEmail, 60000);
+        }
+      }, 3000);
+    }
+
+    setupAccountDetection();
     setupNotificationObserver();
     setupOutlookNotificationObserver();
     setupNotificationApiInterceptor();

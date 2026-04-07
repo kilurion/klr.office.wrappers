@@ -93,6 +93,20 @@ function handleTrayClick(mainWindow) {
 }
 
 
+// Store tray reference for tooltip updates
+let trayInstance = null;
+let baseName = '';
+
+/**
+ * Updates the tray tooltip to include the account name
+ * @param {string} accountName - The logged-in account name
+ */
+function updateTrayTooltip(accountName) {
+  if (trayInstance && accountName) {
+    trayInstance.setToolTip(`${baseName} — ${accountName}`);
+  }
+}
+
 /**
  * Sets up the system tray with all necessary functionality
  * @param {import('electron').BrowserWindow} mainWindow - The main application window
@@ -104,6 +118,10 @@ async function setupTrayAsync(mainWindow, appConfig) {
     // Initialize tray
     const tray = new Tray(appConfig.iconPath);
     tray.setToolTip(appConfig.name || 'Microsoft Teams');
+
+    // Store references for tooltip updates
+    trayInstance = tray;
+    baseName = appConfig.name || 'Microsoft Teams';
 
     // Initialize state
     const state = {
@@ -129,4 +147,4 @@ async function setupTrayAsync(mainWindow, appConfig) {
   });
 }
 
-module.exports = {setupTray: setupTrayAsync};
+module.exports = {setupTray: setupTrayAsync, updateTrayTooltip};

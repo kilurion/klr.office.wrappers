@@ -4,23 +4,37 @@ const path = require('path');
 
 function setupNotifications(mainWindow, iconPath) {
 
+  function focusMainWindow() {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }
+
   // On Linux, use notify-send for reliable KDE Plasma / GNOME integration
   function showLinuxNotification(title, body) {
     const args = [
       '--app-name', app.name || 'Outlook',
       '--expire-time', '10000',
+      '--action=default=Open',
     ];
     if (iconPath) {
       args.push('--icon', iconPath);
     }
     args.push(title, body);
 
-    execFile('notify-send', args, (error) => {
+    execFile('notify-send', args, (error, stdout) => {
       if (error) {
         console.warn('[Notification] notify-send failed, falling back to Electron:', error.message);
         showElectronNotification(title, body);
       } else {
-        console.log('[Notification] Shown via notify-send');
+        if (stdout && stdout.trim() === 'default') {
+          console.log('[Notification] Clicked, focusing window');
+          focusMainWindow();
+        } else {
+          console.log('[Notification] Shown via notify-send');
+        }
       }
     });
   }
@@ -36,11 +50,7 @@ function setupNotifications(mainWindow, iconPath) {
     });
 
     notification.on('click', () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-      }
+      focusMainWindow();
     });
 
     notification.show();
