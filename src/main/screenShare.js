@@ -16,12 +16,18 @@ function init(mainWindow) {
   _mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
     console.log('[ScreenShare] Display media request received');
 
+    // Only forward a system-audio loopback track when the page actually asked
+    // for share-audio. Otherwise the mic track and the loopback track end up
+    // both being transmitted, which is heard as duplicated audio on the
+    // remote side.
+    const audioRequested = request && request.audioRequested === true;
+
     _streamSelector.show((selectedSource) => {
       try {
         if (selectedSource) {
-          console.log(`[ScreenShare] Source selected: ${selectedSource.name} (${selectedSource.id})`);
+          console.log(`[ScreenShare] Source selected: ${selectedSource.name} (${selectedSource.id}); audioRequested=${audioRequested}`);
           global.selectedScreenShareSource = selectedSource;
-          callback({ video: selectedSource, audio: 'loopback' });
+          callback({ video: selectedSource, audio: audioRequested ? 'loopback' : false });
         } else {
           console.log('[ScreenShare] Selection cancelled by user');
           callback({ video: null, audio: null });
