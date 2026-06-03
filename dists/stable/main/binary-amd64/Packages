@@ -1,0 +1,40 @@
+Package: outlook-ew
+Version: 1.7.0
+Architecture: amd64
+Maintainer: Francisco Martins <francisco_jcm_7@hotmail.com>
+Installed-Size: 282692
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
+Recommends: libappindicator3-1
+Filename: pool/main/outlook-ew_1.7.0_amd64.deb
+Size: 88813436
+MD5sum: b860192dd6f89cf6cfd55583858fb1dc
+SHA1: 832da3ca25dc7f1e8d9f42abbbf00d5d72ec93e2
+SHA256: 85bf66998877bbf3f075c0d90d468b614b815f982a64be2f99e14efde0a8da7d
+Section: default
+Priority: optional
+Homepage: https://github.com/0xfcmartins/teams-ew
+Description:
+  Unofficial Electron wrapper for Microsoft Outlook, built for Linux desktop.
+License: MIT
+Vendor: Francisco Martins <francisco_jcm_7@hotmail.com>
+
+Package: teams-ew
+Version: 1.7.0
+Architecture: amd64
+Maintainer: Francisco Martins <francisco_jcm_7@hotmail.com>
+Installed-Size: 290597
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
+Recommends: libappindicator3-1
+Filename: pool/main/teams-ew_1.7.0_amd64.deb
+Size: 91002316
+MD5sum: cc5b7b6c216697987e84971fe78e2a2a
+SHA1: 63319dd0adf4917b422fd6c49863f0f7f2b2be3a
+SHA256: 6e3fe0e620c9aa169d6d221fd284a29be746c4c3d8558320941e034e12c48853
+Section: default
+Priority: optional
+Homepage: https://github.com/0xfcmartins/teams-ew
+Description:
+  Unofficial Electron wrapper for Microsoft Teams, built for Linux desktop.
+License: MIT
+Vendor: Francisco Martins <francisco_jcm_7@hotmail.com>
+
