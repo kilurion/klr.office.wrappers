@@ -134,7 +134,6 @@ function applyEnvironment(app, appConfig) {
     if (displayServer === 'wayland') {
       console.info('Running under Wayland, enabling PipeWire support...');
       enableFeatures.add('WebRTCPipeWireCapturer');
-      app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
     }
 
     // Ensure DISPLAY is set for X11 applications

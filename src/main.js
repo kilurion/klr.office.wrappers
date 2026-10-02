@@ -700,6 +700,10 @@ if (!gotTheLock) {
     });
 
     app.isQuitting = false;
+    // app.quit() (SIGTERM, logout, shutdown) must not be swallowed by hide-to-tray
+    app.on('before-quit', () => {
+      app.isQuitting = true;
+    });
   }
 
   app.whenReady().then(async () => {
