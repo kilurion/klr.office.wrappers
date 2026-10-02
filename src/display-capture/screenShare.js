@@ -260,9 +260,9 @@ class ScreenSourceSelector {
       console.error('[ScreenSourceSelector] Error during cancelSelection:', e);
     } finally {
       // Ensure we cleanup listeners and close the picker gracefully even if IPC path is unavailable
-      try { this.cleanup(); } catch {}
+      try { this.cleanup(); } catch { /* best effort */ }
       // Close the window; main process will treat this as a cancel if needed
-      try { window.close(); } catch {}
+      try { window.close(); } catch { /* already closing */ }
     }
   }
 

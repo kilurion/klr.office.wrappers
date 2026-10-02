@@ -419,7 +419,7 @@ contextBridge.exposeInMainWorld('electron', {
         (function() {
           var OrigNotification = window.Notification;
           if (!OrigNotification) return;
-          window.Notification = function(title, options) {
+          function forward(title, options) {
             try {
               window.postMessage({
                 type: '__electron_notification_intercept',
@@ -427,8 +427,26 @@ contextBridge.exposeInMainWorld('electron', {
                 body: String((options && options.body) || '')
               }, '*');
             } catch(e) {}
-            return new OrigNotification(title, options);
+          }
+          // Return a stub instead of a real Notification: the main process shows its own
+          // (with app icon), so a native Chromium one would be a duplicate.
+          window.Notification = function(title, options) {
+            forward(title, options);
+            var stub = new EventTarget();
+            stub.title = String(title);
+            stub.body = (options && options.body) || '';
+            stub.tag = (options && options.tag) || '';
+            stub.data = options && options.data;
+            stub.onclick = stub.onclose = stub.onerror = stub.onshow = null;
+            stub.close = function() {};
+            return stub;
           };
+          if (window.ServiceWorkerRegistration && ServiceWorkerRegistration.prototype.showNotification) {
+            ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
+              forward(title, options);
+              return Promise.resolve();
+            };
+          }
           Object.defineProperty(window.Notification, 'permission', {
             get: function() { return OrigNotification.permission; },
             configurable: true
@@ -466,7 +484,7 @@ contextBridge.exposeInMainWorld('electron', {
               const url = new URL(href);
               const hint = url.searchParams.get('login_hint') || '';
               if (hint.includes('@')) email = hint;
-            } catch (_) { /* invalid URL, skip */ }
+            } catch { /* invalid URL, skip */ }
           }
         }
 
@@ -486,10 +504,10 @@ contextBridge.exposeInMainWorld('electron', {
                       email = candidate;
                       break;
                     }
-                  } catch (_) { /* not JSON, skip */ }
+                  } catch { /* not JSON, skip */ }
                 }
               }
-            } catch (_) { /* storage access denied, skip */ }
+            } catch { /* storage access denied, skip */ }
           }
         }
 

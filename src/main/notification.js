@@ -1,6 +1,5 @@
 const {Notification, ipcMain, nativeImage, app} = require('electron');
 const {execFile} = require('child_process');
-const path = require('path');
 
 function setupNotifications(mainWindow, iconPath) {
 

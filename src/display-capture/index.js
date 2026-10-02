@@ -24,9 +24,11 @@ ipcMain.on('source-selected', (event, source) => {
   }
 });
 
-ipcMain.on('selection-cancelled', (event) => {
+ipcMain.on('selection-cancelled', () => {
   try {
+    if (activeStreamSelector) {
       activeStreamSelector.handleSelection(null);
+    }
   } catch (error) {
     console.error('[StreamSelector] Error handling selection cancellation:', error);
   }

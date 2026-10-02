@@ -80,14 +80,17 @@ function applyEnvironment(app, appConfig) {
         }
     }
 
+    // Chromium keeps only the last value per switch, so features are collected and appended once
+    const enableFeatures = new Set();
+    const disableFeatures = new Set(['InPrivateMode']);
+
     if (process.platform === 'linux') {
         // Wayland support
         if (process.env.XDG_SESSION_TYPE === 'wayland') {
             if (shouldDisableHardwareAcceleration) {
                 console.info('Wayland detected with hardware acceleration disabled. Using software rendering without Ozone Wayland to avoid EGL errors.');
             } else {
-                app.commandLine.appendSwitch('enable-features', 'UseOzonePlatform,WebRTCPipeWireCapturer');
-                app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+                enableFeatures.add('WebRTCPipeWireCapturer');
             }
         }
 
@@ -100,15 +103,14 @@ function applyEnvironment(app, appConfig) {
 
         // Always add these flags for Snap or when hardware acceleration is disabled
         if (isSnap || shouldDisableHardwareAcceleration) {
-            app.commandLine.appendSwitch('disable-features', 'VaapiVideoDecoder');
-            app.commandLine.appendSwitch('ignore-gpu-blacklist');
+            disableFeatures.add('VaapiVideoDecoder');
+            app.commandLine.appendSwitch('ignore-gpu-blocklist');
         }
 
         // Snap-specific display handling
         if (isSnap) {
             // Force X11 in Snap environment
             app.commandLine.appendSwitch('use-gl', 'swiftshader');
-            app.commandLine.appendSwitch('ignore-certificate-errors');
 
             // Ensure DISPLAY is set
             if (!process.env.DISPLAY) {
@@ -118,8 +120,9 @@ function applyEnvironment(app, appConfig) {
         }
     }
 
-    app.commandLine.appendSwitch('disable-features', 'InPrivateMode');
     app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+    enableFeatures.add('WebRTC-H264WithOpenH264FFFmpeg');
 
     // Environment-aware media flags - Wayland-specific optimization for Linux desktop environments
     // PipeWire provides better screen sharing and audio capture on Wayland
@@ -130,20 +133,8 @@ function applyEnvironment(app, appConfig) {
 
         if (displayServer === 'wayland') {
             console.info('Running under Wayland, enabling PipeWire support...');
-
-            const features = app.commandLine.hasSwitch('enable-features')
-                ? app.commandLine.getSwitchValue('enable-features').split(',')
-                : ['WebRTC-H264WithOpenH264FFFmpeg'];
-
-            if (!features.includes('WebRTCPipeWireCapturer')) {
-                features.push('WebRTCPipeWireCapturer');
-            }
-
-            app.commandLine.appendSwitch('enable-features', features.join(','));
+            enableFeatures.add('WebRTCPipeWireCapturer');
             app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
-        } else {
-            // X11 or Snap environment
-            app.commandLine.appendSwitch('enable-features', 'WebRTC-H264WithOpenH264FFFmpeg');
         }
 
         // Ensure DISPLAY is set for X11 applications
@@ -152,10 +143,10 @@ function applyEnvironment(app, appConfig) {
             // Try to set a default display
             process.env.DISPLAY = ':0';
         }
-    } else {
-        // Non-Linux environments: enable H264 support only
-        app.commandLine.appendSwitch('enable-features', 'WebRTC-H264WithOpenH264FFFmpeg');
     }
+
+    app.commandLine.appendSwitch('enable-features', [...enableFeatures].join(','));
+    app.commandLine.appendSwitch('disable-features', [...disableFeatures].join(','));
 
     // WebRTC logs only in development mode
     if (process.env.NODE_ENV === 'development') {

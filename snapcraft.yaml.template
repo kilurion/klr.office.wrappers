@@ -65,7 +65,7 @@ parts:
 
   electron:
     plugin: dump
-    source: https://github.com/electron/electron/releases/download/v35.1.2/electron-v35.1.2-linux-x64.zip
+    source: https://github.com/electron/electron/releases/download/v44.5.1/electron-v44.5.1-linux-x64.zip
     source-type: zip
     override-build: |
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
@@ -106,10 +106,8 @@ parts:
       export DBUS_SESSION_BUS_ADDRESS
       fi
       
-      # Wayland/X11 handling
-      if [ -n "$WAYLAND_DISPLAY" ]; then
-      export ELECTRON_OZONE_PLATFORM_HINT=wayland
-      else
+      # Electron picks Wayland automatically; only X11 needs a DISPLAY fallback
+      if [ -z "$WAYLAND_DISPLAY" ]; then
       export DISPLAY=${DISPLAY:-:0}
       fi
       

@@ -4,13 +4,18 @@ const { StreamSelector } = require('../display-capture');
 
 let _mainWindow = null;
 let _streamSelector = null;
+let _getMainWindow = () => _mainWindow;
+
+function getSelector(win) {
+  if (!_streamSelector || _streamSelector.parentWindow !== win) {
+    _streamSelector = new StreamSelector(win);
+  }
+  return _streamSelector;
+}
 
 function init(mainWindow) {
   _mainWindow = mainWindow;
   if (!_mainWindow) return;
-
-  // Create selector instance bound to the main window
-  _streamSelector = new StreamSelector(_mainWindow);
 
   // Attach unified display media request handler
   _mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
@@ -22,7 +27,7 @@ function init(mainWindow) {
     // remote side.
     const audioRequested = request && request.audioRequested === true;
 
-    _streamSelector.show((selectedSource) => {
+    getSelector(_mainWindow).show((selectedSource) => {
       try {
         if (selectedSource) {
           console.log(`[ScreenShare] Source selected: ${selectedSource.name} (${selectedSource.id}); audioRequested=${audioRequested}`);
@@ -40,35 +45,54 @@ function init(mainWindow) {
   });
 }
 
-function setupIpcHandlers(ipcMain) {
-  if (!_mainWindow) {
-    console.warn('[ScreenShare] setupIpcHandlers called before init');
-  }
+function setupIpcHandlers(ipcMain, getMainWindow) {
+  if (getMainWindow) _getMainWindow = getMainWindow;
+
+  ipcMain.handle('get-screen-sources-safe', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['window', 'screen'],
+        thumbnailSize: { width: 300, height: 300 },
+        fetchWindowIcons: true
+      });
+
+      return sources
+        .filter((source) => !source.name.includes('loginwindow') &&
+          !source.name.includes('WindowServer') &&
+          source.name.trim().length > 0)
+        .map((source) => ({
+          id: source.id,
+          name: source.name,
+          thumbnail: source.thumbnail.toDataURL()
+        }));
+    } catch (error) {
+      console.error('[ScreenShare] Error getting sources:', error);
+      return [];
+    }
+  });
 
   // Trigger screen sharing from renderer
   ipcMain.on('trigger-screen-share', () => {
     console.log('[ScreenShare] Screen sharing triggered from renderer API');
-    if (!_mainWindow || _mainWindow.isDestroyed()) {
+    const win = _getMainWindow();
+    if (!win || win.isDestroyed()) {
       console.error('[ScreenShare] Main window not available');
       return;
     }
 
-    if (!_streamSelector) {
-      _streamSelector = new StreamSelector(_mainWindow);
-    }
-
-    _streamSelector.show((selectedSource) => {
+    getSelector(win).show((selectedSource) => {
+      if (win.isDestroyed()) return;
       if (selectedSource) {
         console.log(`[ScreenShare] Source selected via API: ${selectedSource.name} (${selectedSource.id})`);
         global.selectedScreenShareSource = selectedSource;
-        _mainWindow.webContents.send('screen-sharing-source-selected', {
+        win.webContents.send('screen-sharing-source-selected', {
           sourceId: selectedSource.id,
           sourceName: selectedSource.name,
           isActive: true,
         });
       } else {
         console.log('[ScreenShare] Selection cancelled via API');
-        _mainWindow.webContents.send('screen-sharing-source-selected', {
+        win.webContents.send('screen-sharing-source-selected', {
           isActive: false,
           cancelled: true,
         });
@@ -81,8 +105,9 @@ function setupIpcHandlers(ipcMain) {
     console.log('[ScreenShare] Screen sharing stopped');
     global.selectedScreenShareSource = null;
 
-    if (_mainWindow && !_mainWindow.isDestroyed()) {
-      _mainWindow.webContents.send('screen-sharing-status-changed', { isActive: false });
+    const win = _getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('screen-sharing-status-changed', { isActive: false });
     }
   });
 
