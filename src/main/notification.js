@@ -1,7 +1,25 @@
 const {Notification, ipcMain, nativeImage, app} = require('electron');
 const {execFile} = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+// The notification daemon can't read files inside app.asar, so copy the icon out once
+function resolveExternalIcon(iconPath) {
+  if (!iconPath || !iconPath.includes('.asar')) return iconPath;
+  try {
+    const target = path.join(app.getPath('userData'), 'notification-icon' + path.extname(iconPath));
+    if (!fs.existsSync(target)) {
+      fs.writeFileSync(target, fs.readFileSync(iconPath));
+    }
+    return target;
+  } catch (error) {
+    console.warn('[Notification] Could not extract icon:', error.message);
+    return null;
+  }
+}
 
 function setupNotifications(mainWindow, iconPath) {
+  const externalIconPath = resolveExternalIcon(iconPath);
 
   function focusMainWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -18,15 +36,20 @@ function setupNotifications(mainWindow, iconPath) {
       '--expire-time', '10000',
       '--action=default=Open',
     ];
-    if (iconPath) {
-      args.push('--icon', iconPath);
+    if (externalIconPath) {
+      args.push('--icon', externalIconPath);
     }
     args.push(title, body);
 
     execFile('notify-send', args, (error, stdout) => {
       if (error) {
-        console.warn('[Notification] notify-send failed, falling back to Electron:', error.message);
-        showElectronNotification(title, body);
+        // A non-zero exit can happen after the notification was already shown
+        if (error.code === 'ENOENT') {
+          console.warn('[Notification] notify-send not found, falling back to Electron');
+          showElectronNotification(title, body);
+        } else {
+          console.warn('[Notification] notify-send exited with an error:', error.message);
+        }
       } else {
         if (stdout && stdout.trim() === 'default') {
           console.log('[Notification] Clicked, focusing window');
