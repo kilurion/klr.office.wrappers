@@ -1,0 +1,43 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: klr-office-wrappers
+Label: KLR Office Wrappers
+Suite: stable
+Codename: stable
+Architectures: amd64
+Components: main
+Description: Microsoft app wrappers for Linux
+Date: Fri, 02 Oct 2026 08:09:22 +0000
+MD5Sum:
+ fbc798a5238a47d44bd369bd7e89f731              208 Release
+ b676549a7af75f21d6db1246b5e7b0fc             1499 main/binary-amd64/Packages
+ 1e08d815ebd532dec3cacbef6d54c420              650 main/binary-amd64/Packages.gz
+SHA1:
+ 2ac479d0536e524e9a3ee1f63ce210bfe580f6b8              208 Release
+ 81ff911391434c0203d311a2f6cf7242661b700a             1499 main/binary-amd64/Packages
+ f897dcf9be3a204d2b9f7e0838fdc7cc95cdf851              650 main/binary-amd64/Packages.gz
+SHA256:
+ 930801a7c4cdfe93f81b3957d92112778993b830b400eee2ad47a0ac7605af30              208 Release
+ 1827b046a91e3d35ce21367ca05d997ca912eb058c51c2e71e08c18ade5afb0f             1499 main/binary-amd64/Packages
+ 417917401ab38c08e20e87bd5c4128a7e60196d61ff8088e97e5e7f9c415026b              650 main/binary-amd64/Packages.gz
+SHA512:
+ 7658d1de52dcc46ccbcb491eecb2ff91a5ab45dbbe9ba4ff18c76d8d41ff12ea33051fa175ce053e283c8cbe63bd585aef4b042095584c5120097302b1651358              208 Release
+ 6ff1a8255ec7ec31fdc9364592d00bb54c917245db928fb89fb632fe09530b0c866f56a8e2061046b7d23aa009b0c6a666809ec2ffda985fb54c866c1b7bd6e5             1499 main/binary-amd64/Packages
+ c15bff83a1917e30f84cc07603078e85f39729d80684ef35988c771a90cdd2300fad601282882eb386a9d88d276ddbdd23fc7921d4d90436b5141c80ef509549              650 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEJmbXRaLnZWX4saCaqDTXMsAopLEFAmq/ZrIACgkQqDTXMsAo
+pLHI8A/+LMQslOpQb5Zij5EDE0bK3xXFT/I5vUKhrujNF/X+w2Kor7q1EHQJZEQr
+qsp2mK67E4+ZvUskvpA+AJysQhmIXMTaxmnaHaiVPZeE1GicPT4mIgwYXFdaR1w1
+VPdp9tMSdjHPUV1FoBovZ4w83zxfAFMWvv/+wUlA+KhY+MDgudHKRsi/yHsHOxik
+mzUuiyse3laZSEi58SB0DVfJl9SvG9EHKZ1P8/cHW3n4duVCc6ElN+5GQITnqppH
+g3PMFLXd5SBHJu3B9lCsUeaKPHwlXLWcrRDfbCjHK+pM+kTR5CVGlS+oPqDAojMh
+n0Qc9ELS4Juwnw+L+8I6FcK4ux6+qPtcvYQHKDDXyDWpnrl1mAx0mDmfd2qvKp1s
+E2FqURodpgqtd6QWBi8rMCx6zMbPdC9/4kz8/EbzBSPnS0ROM0UxiiRJL39ssfFD
+vYADMLuRJ1iCeWJecLOFRzevmNHT2pOvvYxBPtLWbx5z/m7TKcUYURN1HltTo0n5
+Yef7kvd/7wi2yHW/YO0zZsw68CFrfmVA1gFqGmkODPk6ESeZutw7FTa0/g0h3rYV
+F78ow6lopk6XqzWx043K1RTaNEy30uvZi4DbUJoyerulQF8EnLKcOxnFFhJ4feG2
+G4Annuuc4uDPRd8jeBqQdS3YdaWf+JU15CtznRWBi9Gc3+CjA/Y=
+=Zt1c
+-----END PGP SIGNATURE-----
