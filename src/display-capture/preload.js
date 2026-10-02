@@ -14,8 +14,8 @@ contextBridge.exposeInMainWorld('streamSelector', {
    * @param {Function} callback - Callback to handle sources data
    */
   onSourcesAvailable: (callback) => {
-    ipcRenderer.on('sources-available', (event, sources) => {
-      callback(sources);
+    ipcRenderer.on('sources-available', (event, sources, options) => {
+      callback(sources, options || {});
     });
   },
 

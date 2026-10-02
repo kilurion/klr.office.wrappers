@@ -21,27 +21,26 @@ function init(mainWindow) {
   _mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
     console.log('[ScreenShare] Display media request received');
 
-    // Only forward a system-audio loopback track when the page actually asked
-    // for share-audio. Otherwise the mic track and the loopback track end up
-    // both being transmitted, which is heard as duplicated audio on the
-    // remote side.
+    // Linux loopback captures the whole system mix (incl. the call itself), which
+    // duplicates the mic/remote audio, so it is only attached when the user opts in.
     const audioRequested = request && request.audioRequested === true;
 
-    getSelector(_mainWindow).show((selectedSource) => {
+    getSelector(_mainWindow).show((selectedSource, { shareAudio = false } = {}) => {
       try {
         if (selectedSource) {
-          console.log(`[ScreenShare] Source selected: ${selectedSource.name} (${selectedSource.id}); audioRequested=${audioRequested}`);
+          const withAudio = audioRequested && shareAudio;
+          console.log(`[ScreenShare] Source selected: ${selectedSource.name} (${selectedSource.id}); audioRequested=${audioRequested}, shareAudio=${withAudio}`);
           global.selectedScreenShareSource = selectedSource;
-          callback({ video: selectedSource, audio: audioRequested ? 'loopback' : false });
+          callback(withAudio ? { video: selectedSource, audio: 'loopback' } : { video: selectedSource });
         } else {
           console.log('[ScreenShare] Selection cancelled by user');
-          callback({ video: null, audio: null });
+          callback({});
         }
       } catch (error) {
         console.error('[ScreenShare] Error during source selection:', error);
-        callback({ video: null, audio: null });
+        callback({});
       }
-    });
+    }, { audioRequested });
   });
 }
 

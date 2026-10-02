@@ -46,7 +46,7 @@ class StreamSelector {
    * Show the source selector and return selected source
    * @param {Function} callback - Callback to execute with selected source
    */
-  async show(callback) {
+  async show(callback, { audioRequested = false } = {}) {
     console.log('[StreamSelector] Starting selection process');
 
     if (this.pickerWindow) {
@@ -56,6 +56,7 @@ class StreamSelector {
     }
 
     this.currentCallback = callback;
+    this.audioRequested = audioRequested;
 
     // Set this instance as the active one for IPC handlers
     activeStreamSelector = this;
@@ -112,7 +113,7 @@ class StreamSelector {
         thumbnail: source.thumbnail.toDataURL(),
         appIcon: source.appIcon ? source.appIcon.toDataURL() : null
       }));
-      this.pickerWindow.webContents.send('sources-available', serializableSources);
+      this.pickerWindow.webContents.send('sources-available', serializableSources, { audioRequested: this.audioRequested });
     });
 
     this.pickerWindow.on('closed', () => {
@@ -121,6 +122,7 @@ class StreamSelector {
   }
 
   handleSelection(selectedSource) {
+    const shareAudio = selectedSource?.shareAudio === true;
     if (selectedSource) {
       console.log(`[StreamSelector] Selection completed: ${selectedSource.name} (${selectedSource.id})`);
 
@@ -150,7 +152,7 @@ class StreamSelector {
         this.pickerWindow.close();
       }
 
-      callback(selectedSource);
+      callback(selectedSource, { shareAudio });
     }
   }
 

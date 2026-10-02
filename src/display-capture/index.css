@@ -182,6 +182,20 @@ body {
     border-top: 1px solid var(--border);
 }
 
+.share-audio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: auto;
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.share-audio[hidden] {
+    display: none;
+}
+
 .btn {
     padding: 8px 20px;
     border: none;

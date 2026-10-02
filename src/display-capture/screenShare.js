@@ -20,6 +20,8 @@ class ScreenSourceSelector {
     this.cancelBtn = document.getElementById('cancelBtn');
     this.screensTab = document.getElementById('screensTab');
     this.windowsTab = document.getElementById('windowsTab');
+    this.shareAudioLabel = document.getElementById('shareAudioLabel');
+    this.shareAudioCheckbox = document.getElementById('shareAudio');
     
     this.init();
   }
@@ -53,7 +55,8 @@ class ScreenSourceSelector {
     
     // Listen for sources from main process
     if (window.streamSelector) {
-      window.streamSelector.onSourcesAvailable((sources) => {
+      window.streamSelector.onSourcesAvailable((sources, options) => {
+        if (this.shareAudioLabel) this.shareAudioLabel.hidden = !options.audioRequested;
         this.handleSourcesReceived(sources);
       });
     } else {
@@ -226,7 +229,8 @@ class ScreenSourceSelector {
           id: this.selectedSource.id,
           name: this.selectedSource.name,
           display_id: this.selectedSource.display_id,
-          appIcon: this.selectedSource.appIcon
+          appIcon: this.selectedSource.appIcon,
+          shareAudio: !!(this.shareAudioCheckbox && !this.shareAudioLabel.hidden && this.shareAudioCheckbox.checked)
         };
         
         window.streamSelector.selectSource(serializableSource);
