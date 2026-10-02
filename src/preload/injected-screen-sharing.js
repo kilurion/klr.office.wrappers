@@ -15,12 +15,12 @@
     navigator.mediaDevices.getDisplayMedia = function (constraints) {
       return originalGetDisplayMedia(constraints)
         .then((stream) => {
-          console.debug("Screen sharing stream detected via getDisplayMedia");
-          handleScreenShareStream(stream, "getDisplayMedia");
+          console.debug('Screen sharing stream detected via getDisplayMedia');
+          handleScreenShareStream(stream, 'getDisplayMedia');
           return stream;
         })
         .catch((error) => {
-          console.error("getDisplayMedia error:", error);
+          console.error('getDisplayMedia error:', error);
           throw error;
         });
     };
@@ -38,26 +38,26 @@
             constraints &&
             constraints.video &&
             // Electron format
-            (constraints.video.chromeMediaSource === "desktop" ||
-              constraints.video.mandatory?.chromeMediaSource === "desktop" ||
+            (constraints.video.chromeMediaSource === 'desktop' ||
+              constraints.video.mandatory?.chromeMediaSource === 'desktop' ||
               // Teams format
               constraints.video.chromeMediaSourceId ||
               constraints.video.mandatory?.chromeMediaSourceId ||
               // Generic desktop capture
-              (typeof constraints.video === "object" &&
+              (typeof constraints.video === 'object' &&
                 constraints.video.deviceId &&
-                typeof constraints.video.deviceId === "object" &&
+                typeof constraints.video.deviceId === 'object' &&
                 constraints.video.deviceId.exact));
 
           if (isScreenShare) {
-            console.debug("Screen sharing stream detected");
-            handleScreenShareStream(stream, "getUserMedia");
+            console.debug('Screen sharing stream detected');
+            handleScreenShareStream(stream, 'getUserMedia');
           }
 
           return stream;
         })
         .catch((error) => {
-          console.error("getUserMedia error:", error);
+          console.error('getUserMedia error:', error);
           throw error;
         });
     };
@@ -65,7 +65,7 @@
 
   // Centralized handler for screen sharing streams
   function handleScreenShareStream(stream, source) {
-    console.debug("Screen sharing stream started from:", source);
+    console.debug('Screen sharing stream started from:', source);
     
     // v2.5.3: Enhanced logging for audio duplication diagnosis
     console.debug(`[SCREEN_SHARE_DIAG] Stream created - ID: ${stream.id}, Source: ${source}`);
@@ -84,13 +84,13 @@
     const electronAPI = window.electronAPI;
 
     if (!electronAPI) {
-      console.error("electronAPI not available");
+      console.error('electronAPI not available');
       return;
     }
 
     // Check if we're creating a duplicate session
     if (isScreenSharing) {
-      console.warn(`[SCREEN_SHARE_DIAG] WARNING: Screen sharing already active! This might create duplicate sessions.`);
+      console.warn('[SCREEN_SHARE_DIAG] WARNING: Screen sharing already active! This might create duplicate sessions.');
       console.debug(`[SCREEN_SHARE_DIAG] Previous active streams: ${activeStreams.map(s => s.id).join(', ')}`);
     }
 
@@ -107,7 +107,7 @@
         ? stream.id
         : `screen-share-${crypto.randomUUID()}`;
       electronAPI.sendScreenSharingStarted(sourceId);
-      electronAPI.send("active-screen-share-stream", stream);
+      electronAPI.send('active-screen-share-stream', stream);
     }
 
     // Start UI monitoring for stop sharing buttons
@@ -120,17 +120,17 @@
 
     // When tracks end (e.g., meeting left or share stopped by Teams), trigger stop to close preview
     trackingVideoTracks.forEach((track, index) => {
-      track.addEventListener("ended", () => {
-        console.debug("Video track", index, "ended");
+      track.addEventListener('ended', () => {
+        console.debug('Video track', index, 'ended');
         // Ensure preview closes when the captured track ends
-        handleStreamEnd("video-track-ended");
+        handleStreamEnd('video-track-ended');
       });
     });
   }
 
   // Function to handle stream ending - used by UI button detection
   function handleStreamEnd(reason) {
-    console.debug("Stream ending detected, reason:", reason);
+    console.debug('Stream ending detected, reason:', reason);
     
     // v2.5.3: Enhanced logging for stream ending diagnosis
     console.debug(`[SCREEN_SHARE_DIAG] Stream ending - Reason: ${reason}`);
@@ -140,7 +140,7 @@
 
     if (isScreenSharing) {
       isScreenSharing = false;
-      console.debug(`[SCREEN_SHARE_DIAG] Screen sharing state set to false`);
+      console.debug('[SCREEN_SHARE_DIAG] Screen sharing state set to false');
 
       const electronAPI = window.electronAPI;
       if (electronAPI?.sendScreenSharingStopped) {
@@ -156,7 +156,7 @@
 
   // Monitor Teams UI for stop sharing actions
   function startUIMonitoring() {
-    console.debug("Starting UI monitoring for screen sharing controls");
+    console.debug('Starting UI monitoring for screen sharing controls');
 
     // Look for common screen sharing control selectors
     const stopSharingSelectors = [
@@ -167,10 +167,10 @@
       'button[aria-label*="Stop sharing"]',
       '[data-tid="call-screen-share-stop-button"]',
       '[data-tid="desktop-share-stop-button"]',
-      ".ts-calling-screen-share-stop-button",
+      '.ts-calling-screen-share-stop-button',
       'button[data-testid*="stop-sharing"]',
       '[data-tid*="share"] button',
-      ".share-stop-button",
+      '.share-stop-button',
       '[aria-label*="share"]',
       '[title*="share"]',
       '[data-tid*="hangup"]',
@@ -190,16 +190,16 @@
 
       if (foundButtons > 0) {
         console.debug(
-          "Added stop sharing listeners to",
+          'Added stop sharing listeners to',
           foundButtons,
-          "buttons"
+          'buttons'
         );
       }
     }
 
     // Handle stop sharing button clicks
     function handleStopSharing(event) {
-      console.debug("Stop sharing button clicked", event);
+      console.debug('Stop sharing button clicked', event);
 
       if (isScreenSharing) {
         // Force stop all active media tracks
@@ -211,7 +211,7 @@
     const observer = new MutationObserver((mutations) => {
       let shouldCheckForButtons = false;
       mutations.forEach((mutation) => {
-        if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           shouldCheckForButtons = true;
         }
       });
@@ -241,8 +241,8 @@
   }
 
   // Initialize monitoring
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
       monitorScreenSharing();
     });
   } else {
@@ -250,17 +250,17 @@
   }
 
   // Ensure we signal stop when page is being unloaded or hidden (e.g., leaving meeting)
-  window.addEventListener("beforeunload", () => {
+  window.addEventListener('beforeunload', () => {
     if (isScreenSharing) {
-      console.debug("beforeunload detected while screen sharing - sending stop");
-      handleStreamEnd("beforeunload");
+      console.debug('beforeunload detected while screen sharing - sending stop');
+      handleStreamEnd('beforeunload');
     }
   });
 
-  window.addEventListener("pagehide", () => {
+  window.addEventListener('pagehide', () => {
     if (isScreenSharing) {
-      console.debug("pagehide detected while screen sharing - sending stop");
-      handleStreamEnd("pagehide");
+      console.debug('pagehide detected while screen sharing - sending stop');
+      handleStreamEnd('pagehide');
     }
   });
 
@@ -273,10 +273,10 @@
       const elements = document.querySelectorAll(selector);
 
       elements.forEach((element) => {
-        if (!element.hasAttribute("data-screen-share-monitored")) {
+        if (!element.hasAttribute('data-screen-share-monitored')) {
           foundButtons++;
-          element.setAttribute("data-screen-share-monitored", "true");
-          element.addEventListener("click", handleStopSharing);
+          element.setAttribute('data-screen-share-monitored', 'true');
+          element.addEventListener('click', handleStopSharing);
         }
       });
     });
@@ -292,7 +292,7 @@
     });
 
     setTimeout(() => {
-      handleStreamEnd("ui-button-click");
+      handleStreamEnd('ui-button-click');
     }, 500);
   }
 })();

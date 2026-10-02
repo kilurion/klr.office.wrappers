@@ -40,74 +40,74 @@ const { contextBridge, ipcRenderer } = require('electron');
  * window.api.on('sources-list', (sources) => { ... });
  */
 function createIpcBridge(namespace, config) {
-    const { sendChannels = [], receiveChannels = [] } = config;
+  const { sendChannels = [], receiveChannels = [] } = config;
     
-    if (!namespace || typeof namespace !== 'string') {
-        throw new Error('Namespace must be a non-empty string');
-    }
+  if (!namespace || typeof namespace !== 'string') {
+    throw new Error('Namespace must be a non-empty string');
+  }
     
-    const api = {};
+  const api = {};
     
-    // Create send methods for one-way communication
-    if (sendChannels.length > 0) {
-        /**
+  // Create send methods for one-way communication
+  if (sendChannels.length > 0) {
+    /**
          * Sends data to the main process via IPC
          * @param {string} channel - The channel name
          * @param {*} data - The data to send
          */
-        api.send = (channel, data) => {
-            if (sendChannels.includes(channel)) {
-                return ipcRenderer.send(channel, data);
-            }
-            console.warn(`[IPC Bridge] Invalid send channel: ${channel}. Valid channels:`, sendChannels);
-        };
+    api.send = (channel, data) => {
+      if (sendChannels.includes(channel)) {
+        return ipcRenderer.send(channel, data);
+      }
+      console.warn(`[IPC Bridge] Invalid send channel: ${channel}. Valid channels:`, sendChannels);
+    };
         
-        /**
+    /**
          * Invokes a handler in the main process and returns a promise
          * @param {string} channel - The channel name
          * @param {*} data - The data to send
          * @returns {Promise} Promise that resolves with the response
          */
-        api.invoke = (channel, data) => {
-            if (sendChannels.includes(channel)) {
-                return ipcRenderer.invoke(channel, data);
-            }
-            console.warn(`[IPC Bridge] Invalid invoke channel: ${channel}. Valid channels:`, sendChannels);
-            return Promise.reject(new Error(`Invalid channel: ${channel}`));
-        };
-    }
+    api.invoke = (channel, data) => {
+      if (sendChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, data);
+      }
+      console.warn(`[IPC Bridge] Invalid invoke channel: ${channel}. Valid channels:`, sendChannels);
+      return Promise.reject(new Error(`Invalid channel: ${channel}`));
+    };
+  }
     
-    // Create receive methods for listening to main process events
-    if (receiveChannels.length > 0) {
-        /**
+  // Create receive methods for listening to main process events
+  if (receiveChannels.length > 0) {
+    /**
          * Listens for messages from the main process
          * @param {string} channel - The channel name
          * @param {Function} callback - The callback function
          */
-        api.on = (channel, callback) => {
-            if (receiveChannels.includes(channel)) {
-                ipcRenderer.on(channel, (event, ...args) => callback(...args));
-            } else {
-                console.warn(`[IPC Bridge] Invalid receive channel: ${channel}. Valid channels:`, receiveChannels);
-            }
-        };
+    api.on = (channel, callback) => {
+      if (receiveChannels.includes(channel)) {
+        ipcRenderer.on(channel, (event, ...args) => callback(...args));
+      } else {
+        console.warn(`[IPC Bridge] Invalid receive channel: ${channel}. Valid channels:`, receiveChannels);
+      }
+    };
         
-        /**
+    /**
          * Listens for a single message from the main process
          * @param {string} channel - The channel name
          * @param {Function} callback - The callback function
          */
-        api.once = (channel, callback) => {
-            if (receiveChannels.includes(channel)) {
-                ipcRenderer.once(channel, (event, ...args) => callback(...args));
-            } else {
-                console.warn(`[IPC Bridge] Invalid receive channel: ${channel}. Valid channels:`, receiveChannels);
-            }
-        };
-    }
+    api.once = (channel, callback) => {
+      if (receiveChannels.includes(channel)) {
+        ipcRenderer.once(channel, (event, ...args) => callback(...args));
+      } else {
+        console.warn(`[IPC Bridge] Invalid receive channel: ${channel}. Valid channels:`, receiveChannels);
+      }
+    };
+  }
     
-    // Expose the API to the main world context
-    contextBridge.exposeInMainWorld(namespace, api);
+  // Expose the API to the main world context
+  contextBridge.exposeInMainWorld(namespace, api);
 }
 
 module.exports = { createIpcBridge };

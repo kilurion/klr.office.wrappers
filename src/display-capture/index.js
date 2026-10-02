@@ -128,12 +128,12 @@ class StreamSelector {
       const originalSource = this.sources.find(source => source.id === selectedSource.id);
       if (originalSource) {
         selectedSource = originalSource;
-        console.log(`[StreamSelector] Mapped to original source object`);
+        console.log('[StreamSelector] Mapped to original source object');
       } else {
         console.warn(`[StreamSelector] Could not find original source for ID: ${selectedSource.id}`);
       }
     } else {
-      console.log(`[StreamSelector] Selection cancelled or failed`);
+      console.log('[StreamSelector] Selection cancelled or failed');
     }
 
     if (this.currentCallback) {

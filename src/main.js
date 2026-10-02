@@ -34,74 +34,74 @@ const {applyEnvironment} = require('./main/environment');
 
 // Enhanced error handling
 function setupGlobalErrorHandling() {
-    process.on('uncaughtException', (error) => {
-        console.error('[FATAL] Uncaught Exception:', error);
-        dialog.showErrorBox('Fatal Error', 'Application encountered a fatal error and will restart.');
-        app.relaunch();
-        app.exit(1);
-    });
+  process.on('uncaughtException', (error) => {
+    console.error('[FATAL] Uncaught Exception:', error);
+    dialog.showErrorBox('Fatal Error', 'Application encountered a fatal error and will restart.');
+    app.relaunch();
+    app.exit(1);
+  });
 
-    process.on('unhandledRejection', (reason, promise) => {
-        console.error('[ERROR] Unhandled Promise Rejection at:', promise, 'reason:', reason);
-    });
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[ERROR] Unhandled Promise Rejection at:', promise, 'reason:', reason);
+  });
 }
 
 // Configuration validation
 function validateAppConfig(config) {
-    const required = ['name', 'url', 'iconFile', 'windowOptions'];
-    const missing = required.filter(key => !config[key]);
+  const required = ['name', 'url', 'iconFile', 'windowOptions'];
+  const missing = required.filter(key => !config[key]);
 
-    if (missing.length > 0) {
-        throw new Error(`Missing required config keys: ${missing.join(', ')}`);
-    }
+  if (missing.length > 0) {
+    throw new Error(`Missing required config keys: ${missing.join(', ')}`);
+  }
 
-    try {
-        new URL(config.url);
-    } catch {
-        throw new Error(`Invalid URL in config: ${config.url}`);
-    }
+  try {
+    new URL(config.url);
+  } catch {
+    throw new Error(`Invalid URL in config: ${config.url}`);
+  }
 
-    const { windowOptions } = config;
-    if (windowOptions.width < 400 || windowOptions.height < 300) {
-        console.warn('[Config] Window dimensions may be too small for proper functionality');
-    }
+  const { windowOptions } = config;
+  if (windowOptions.width < 400 || windowOptions.height < 300) {
+    console.warn('[Config] Window dimensions may be too small for proper functionality');
+  }
 
-    console.log('[Config] Configuration validated successfully');
+  console.log('[Config] Configuration validated successfully');
 }
 
 // Enhanced IPC security with rate limiting
 class IPCRateLimiter {
-    constructor() {
-        this.requests = new Map();
-        this.windowLimit = 100;
-        this.windowMs = 60000;
+  constructor() {
+    this.requests = new Map();
+    this.windowLimit = 100;
+    this.windowMs = 60000;
+  }
+
+  isAllowed(senderId, channel) {
+    const now = Date.now();
+    const key = `${senderId}-${channel}`;
+
+    if (!this.requests.has(key)) {
+      this.requests.set(key, { count: 1, resetTime: now + this.windowMs });
+      return true;
     }
 
-    isAllowed(senderId, channel) {
-        const now = Date.now();
-        const key = `${senderId}-${channel}`;
+    const record = this.requests.get(key);
 
-        if (!this.requests.has(key)) {
-            this.requests.set(key, { count: 1, resetTime: now + this.windowMs });
-            return true;
-        }
-
-        const record = this.requests.get(key);
-
-        if (now > record.resetTime) {
-            record.count = 1;
-            record.resetTime = now + this.windowMs;
-            return true;
-        }
-
-        if (record.count >= this.windowLimit) {
-            console.warn(`[IPC Security] Rate limit exceeded for ${key}`);
-            return false;
-        }
-
-        record.count++;
-        return true;
+    if (now > record.resetTime) {
+      record.count = 1;
+      record.resetTime = now + this.windowMs;
+      return true;
     }
+
+    if (record.count >= this.windowLimit) {
+      console.warn(`[IPC Security] Rate limit exceeded for ${key}`);
+      return false;
+    }
+
+    record.count++;
+    return true;
+  }
 }
 
 const ipcRateLimiter = new IPCRateLimiter();
@@ -111,99 +111,99 @@ const originalIpcHandle = ipcMain.handle.bind(ipcMain);
 const originalIpcOn = ipcMain.on.bind(ipcMain);
 
 ipcMain.handle = (channel, handler) => {
-    return originalIpcHandle(channel, (event, ...args) => {
-        const senderId = event.sender.id;
+  return originalIpcHandle(channel, (event, ...args) => {
+    const senderId = event.sender.id;
 
-        if (!ipcRateLimiter.isAllowed(senderId, channel)) {
-            return Promise.reject(new Error('Rate limit exceeded'));
-        }
+    if (!ipcRateLimiter.isAllowed(senderId, channel)) {
+      return Promise.reject(new Error('Rate limit exceeded'));
+    }
 
-        if (!validateIpcChannel(channel, args.length > 0 ? args[0] : null)) {
-            console.error(`[IPC Security] Rejected handle request for channel: ${channel}`);
-            return Promise.reject(new Error(`Unauthorized IPC channel: ${channel}`));
-        }
-        return handler(event, ...args);
-    });
+    if (!validateIpcChannel(channel, args.length > 0 ? args[0] : null)) {
+      console.error(`[IPC Security] Rejected handle request for channel: ${channel}`);
+      return Promise.reject(new Error(`Unauthorized IPC channel: ${channel}`));
+    }
+    return handler(event, ...args);
+  });
 };
 
 ipcMain.on = (channel, handler) => {
-    return originalIpcOn(channel, (event, ...args) => {
-        const senderId = event?.sender?.id;
+  return originalIpcOn(channel, (event, ...args) => {
+    const senderId = event?.sender?.id;
 
-        if (senderId !== undefined && !ipcRateLimiter.isAllowed(senderId, channel)) {
-            console.warn(`[IPC Security] Rate limit exceeded for channel: ${channel}`);
-            return;
-        }
+    if (senderId !== undefined && !ipcRateLimiter.isAllowed(senderId, channel)) {
+      console.warn(`[IPC Security] Rate limit exceeded for channel: ${channel}`);
+      return;
+    }
 
-        if (!validateIpcChannel(channel, args.length > 0 ? args[0] : null)) {
-            console.error(`[IPC Security] Rejected event for channel: ${channel}`);
-            return;
-        }
-        return handler(event, ...args);
-    });
+    if (!validateIpcChannel(channel, args.length > 0 ? args[0] : null)) {
+      console.error(`[IPC Security] Rejected event for channel: ${channel}`);
+      return;
+    }
+    return handler(event, ...args);
+  });
 };
 
 // Enhanced memory management
 function setupEnhancedMemoryManagement() {
-    const monitorMemory = () => {
-        const usage = process.memoryUsage();
-        const mbUsage = {
-            rss: Math.round(usage.rss / 1024 / 1024),
-            heapTotal: Math.round(usage.heapTotal / 1024 / 1024),
-            heapUsed: Math.round(usage.heapUsed / 1024 / 1024),
-            external: Math.round(usage.external / 1024 / 1024)
-        };
-
-        console.log(`[Memory] RSS: ${mbUsage.rss}MB, Heap: ${mbUsage.heapUsed}/${mbUsage.heapTotal}MB`);
-
-        if (mbUsage.heapUsed > 500 && global.gc) {
-            console.log('[Memory] High memory usage detected, triggering GC');
-            global.gc();
-        }
-
-        if (mbUsage.rss > 1000) {
-            console.warn('[Memory] High RSS memory usage detected:', mbUsage.rss, 'MB');
-        }
+  const monitorMemory = () => {
+    const usage = process.memoryUsage();
+    const mbUsage = {
+      rss: Math.round(usage.rss / 1024 / 1024),
+      heapTotal: Math.round(usage.heapTotal / 1024 / 1024),
+      heapUsed: Math.round(usage.heapUsed / 1024 / 1024),
+      external: Math.round(usage.external / 1024 / 1024)
     };
 
-    setInterval(monitorMemory, 120000);
+    console.log(`[Memory] RSS: ${mbUsage.rss}MB, Heap: ${mbUsage.heapUsed}/${mbUsage.heapTotal}MB`);
+
+    if (mbUsage.heapUsed > 500 && global.gc) {
+      console.log('[Memory] High memory usage detected, triggering GC');
+      global.gc();
+    }
+
+    if (mbUsage.rss > 1000) {
+      console.warn('[Memory] High RSS memory usage detected:', mbUsage.rss, 'MB');
+    }
+  };
+
+  setInterval(monitorMemory, 120000);
 }
 
 // Network connectivity monitoring
 function setupNetworkMonitoring(window) {
-    const checkConnectivity = async () => {
-        try {
-            const request = net.request(appConfig.url);
-            return new Promise((resolve) => {
-                const timeout = setTimeout(() => resolve(false), 5000);
-                request.on('response', () => {
-                    clearTimeout(timeout);
-                    resolve(true);
-                });
-                request.on('error', () => {
-                    clearTimeout(timeout);
-                    resolve(false);
-                });
-                request.end();
-            });
-        } catch {
-            return false;
-        }
-    };
+  const checkConnectivity = async () => {
+    try {
+      const request = net.request(appConfig.url);
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve(false), 5000);
+        request.on('response', () => {
+          clearTimeout(timeout);
+          resolve(true);
+        });
+        request.on('error', () => {
+          clearTimeout(timeout);
+          resolve(false);
+        });
+        request.end();
+      });
+    } catch {
+      return false;
+    }
+  };
 
-    setInterval(async () => {
-        const isOnline = await checkConnectivity();
-        if (window && !window.isDestroyed()) {
-            window.webContents.send('connectivity-status', { isOnline });
-        }
-    }, 30000);
+  setInterval(async () => {
+    const isOnline = await checkConnectivity();
+    if (window && !window.isDestroyed()) {
+      window.webContents.send('connectivity-status', { isOnline });
+    }
+  }, 30000);
 }
 
 let setupTray, setupNotifications;
 
 function loadModules() {
-    if (!setupTray) setupTray = require('./main/tray').setupTray;
-    if (!setupNotifications) setupNotifications = require('./main/notification').setupNotifications;
+  if (!setupTray) setupTray = require('./main/tray').setupTray;
+  if (!setupNotifications) setupNotifications = require('./main/notification').setupNotifications;
 }
 
 const icon = path.join(__dirname, 'icons', appConfig.iconFile);
@@ -212,10 +212,10 @@ const trayIcon = path.join(__dirname, 'icons', appConfig.trayIconFile);
 // Fix for shared memory issues in sandboxed Linux environments.
 // This is a common problem in containers or with some Snap configurations.
 if (process.platform === 'linux') {
-    app.commandLine.appendSwitch('no-zygote');
-    // Add flags to address potential graphics conflicts
-    app.commandLine.appendSwitch('disable-gpu-sandbox');
-    app.commandLine.appendSwitch('disable-software-rasterizer');
+  app.commandLine.appendSwitch('no-zygote');
+  // Add flags to address potential graphics conflicts
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
 }
 
 app.name = appConfig.name;
@@ -224,97 +224,97 @@ const {isSnap} = applyEnvironment(app, appConfig);
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-    app.quit();
+  app.quit();
 } else {
 
-    let mainWindow = null;
+  let mainWindow = null;
 
-    app.on('second-instance', () => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            if (!mainWindow.isVisible()) mainWindow.show();
-            mainWindow.focus();
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  function setupZoomControls(window) {
+
+    const zoomIn = () => {
+      const currentZoom = window.webContents.getZoomLevel();
+      const newZoom = Math.min(currentZoom + 0.5, 3);
+      window.webContents.setZoomLevel(newZoom);
+      console.log(`Zoom level: ${newZoom}`);
+    };
+
+    const zoomOut = () => {
+      const currentZoom = window.webContents.getZoomLevel();
+      const newZoom = Math.max(currentZoom - 0.5, -3);
+      window.webContents.setZoomLevel(newZoom);
+      console.log(`Zoom level: ${newZoom}`);
+    };
+
+    const resetZoom = () => {
+      window.webContents.setZoomLevel(0);
+      console.log('Zoom level reset to: 0');
+    };
+
+    global.resetZoom = resetZoom;
+
+    window.webContents.on('before-input-event', (event, input) => {
+      // DevTools shortcut
+      if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
+        if (input.type === 'keyDown') {
+          window.webContents.openDevTools({ mode: 'detach' });
+          event.preventDefault();
         }
+      }
+      if (input.key === 'F12') {
+        if (input.type === 'keyDown') {
+          window.webContents.openDevTools({ mode: 'detach' });
+          event.preventDefault();
+        }
+      }
+
+      if (input.control || input.meta) {
+        switch (input.key) {
+        case '=':
+        case '+':
+          if (input.type === 'keyDown') {
+            event.preventDefault();
+            zoomIn();
+          }
+          break;
+        case '-':
+          if (input.type === 'keyDown') {
+            event.preventDefault();
+            zoomOut();
+          }
+          break;
+        case '0':
+          if (input.type === 'keyDown') {
+            event.preventDefault();
+            resetZoom();
+          }
+          break;
+        }
+      }
     });
 
-    function setupZoomControls(window) {
+    window.webContents.on('zoom-changed', (event, zoomDirection) => {
+      const currentZoom = window.webContents.getZoomLevel();
+      if (zoomDirection === 'in') {
+        const newZoom = Math.min(currentZoom + 0.5, 3);
+        window.webContents.setZoomLevel(newZoom);
+        console.log(`Mouse zoom in - level: ${newZoom}`);
+      } else if (zoomDirection === 'out') {
+        const newZoom = Math.max(currentZoom - 0.5, -3);
+        window.webContents.setZoomLevel(newZoom);
+        console.log(`Mouse zoom out - level: ${newZoom}`);
+      }
+    });
 
-        const zoomIn = () => {
-            const currentZoom = window.webContents.getZoomLevel();
-            const newZoom = Math.min(currentZoom + 0.5, 3);
-            window.webContents.setZoomLevel(newZoom);
-            console.log(`Zoom level: ${newZoom}`);
-        };
-
-        const zoomOut = () => {
-            const currentZoom = window.webContents.getZoomLevel();
-            const newZoom = Math.max(currentZoom - 0.5, -3);
-            window.webContents.setZoomLevel(newZoom);
-            console.log(`Zoom level: ${newZoom}`);
-        };
-
-        const resetZoom = () => {
-            window.webContents.setZoomLevel(0);
-            console.log(`Zoom level reset to: 0`);
-        };
-
-        global.resetZoom = resetZoom;
-
-        window.webContents.on('before-input-event', (event, input) => {
-            // DevTools shortcut
-            if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
-                if (input.type === 'keyDown') {
-                    window.webContents.openDevTools({ mode: 'detach' });
-                    event.preventDefault();
-                }
-            }
-            if (input.key === 'F12') {
-                if (input.type === 'keyDown') {
-                    window.webContents.openDevTools({ mode: 'detach' });
-                    event.preventDefault();
-                }
-            }
-
-            if (input.control || input.meta) {
-                switch (input.key) {
-                    case '=':
-                    case '+':
-                        if (input.type === 'keyDown') {
-                            event.preventDefault();
-                            zoomIn();
-                        }
-                        break;
-                    case '-':
-                        if (input.type === 'keyDown') {
-                            event.preventDefault();
-                            zoomOut();
-                        }
-                        break;
-                    case '0':
-                        if (input.type === 'keyDown') {
-                            event.preventDefault();
-                            resetZoom();
-                        }
-                        break;
-                }
-            }
-        });
-
-        window.webContents.on('zoom-changed', (event, zoomDirection) => {
-            const currentZoom = window.webContents.getZoomLevel();
-            if (zoomDirection === 'in') {
-                const newZoom = Math.min(currentZoom + 0.5, 3);
-                window.webContents.setZoomLevel(newZoom);
-                console.log(`Mouse zoom in - level: ${newZoom}`);
-            } else if (zoomDirection === 'out') {
-                const newZoom = Math.max(currentZoom - 0.5, -3);
-                window.webContents.setZoomLevel(newZoom);
-                console.log(`Mouse zoom out - level: ${newZoom}`);
-            }
-        });
-
-        window.webContents.once('dom-ready', () => {
-            window.webContents.executeJavaScript(`
+    window.webContents.once('dom-ready', () => {
+      window.webContents.executeJavaScript(`
         document.addEventListener('wheel', (e) => {
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
@@ -323,511 +323,511 @@ if (!gotTheLock) {
           }
         }, { passive: false });
       `).catch(err => console.log('Error injecting zoom script:', err));
-        });
-
-        console.log('Zoom controls setup completed');
-    }
-
-    function createWindow() {
-        try {
-            const mainWindowState = windowStateKeeper({
-                defaultWidth: appConfig.windowOptions.width,
-                defaultHeight: appConfig.windowOptions.height,
-                file: 'window-state.json'
-            });
-
-            mainWindow = new BrowserWindow({
-                x: mainWindowState.x,
-                y: mainWindowState.y,
-                width: mainWindowState.width,
-                height: mainWindowState.height,
-                minWidth: appConfig.windowOptions.minWidth,
-                minHeight: appConfig.windowOptions.minHeight,
-                icon: icon,
-                title: appConfig.name,
-                show: false,
-                backgroundColor: '#ffffff', // Set background color to verify window presence
-                webPreferences: {
-                    plugins: true, // Enable plugin support for Widevine DRM
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    preload: path.resolve(__dirname, 'preload', 'index.js'),
-                    autoplayPolicy: 'user-gesture-required',
-                    partition: 'persist:' + appConfig.snapName,
-                    webgl: true,
-                    allowRunningInsecureContent: false,
-                    webSecurity: true,
-                    backgroundThrottling: false,
-                    offscreen: false,
-                    zoomFactor: 1.0,
-                },
-            });
-
-            const targetSession = mainWindow.webContents.session;
-
-            targetSession.webRequest.onBeforeSendHeaders(
-                (details, callback) => {
-                    const url = details.url;
-                    const appOrigin = appConfig.url.replace(/\/+$/, '');
-                    const requestOrigin = details.requestHeaders['Origin'] || '';
-
-                    // Only override Origin/Referer when the request originates from our app's origin.
-                    // Do NOT override for sub-frames (e.g. login.microsoftonline.com) as that breaks CORS.
-                    if (requestOrigin === appOrigin || requestOrigin === appConfig.url || !requestOrigin) {
-                        if (url.includes('cloud.microsoft') || url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
-                            details.requestHeaders['Origin'] = appOrigin;
-                            details.requestHeaders['Referer'] = appConfig.url;
-                        }
-                    }
-                    callback({requestHeaders: details.requestHeaders});
-                }
-            );
-
-            mainWindow.webContents.setUserAgent(appConfig.userAgent);
-            mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-                console.log(`Permission requested: ${permission}`);
-                const allowedPermissions = appConfig.permissions || [];
-
-                // Always allow media, screen-sharing, and clipboard permissions
-                const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
-                if (alwaysAllow.includes(permission)) {
-                    console.log(`Permission ${permission} allowed (media/screen-sharing/clipboard)`);
-                    callback(true);
-                    return;
-                }
-
-                const allowed = allowedPermissions.includes(permission);
-                console.log(`Permission ${permission} ${allowed ? 'allowed' : 'denied'}`);
-                callback(allowed);
-            });
-
-            // Handle synchronous permission checks (navigator.permissions.query, getUserMedia checks)
-            mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
-                const allowedPermissions = appConfig.permissions || [];
-                const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
-                if (alwaysAllow.includes(permission)) {
-                    return true;
-                }
-                return allowedPermissions.includes(permission);
-            });
-
-            if (appConfig.snapName === 'teams-ew') {
-                // Set up screen sharing via extracted module
-                screenShare.init(mainWindow);
-            }
-
-            mainWindow.webContents.on('console-message', ({ message }) => {
-                if (message && message.includes('Uncaught (in promise) AbortError: Registration failed - push service not available')) {
-                    ipcMain.emit('new-notification', null, {
-                        title: 'System notifications are inactive',
-                        body: 'Please switch application notification mode to "Alert" for proper notifications.'
-                    });
-                }
-            });
-
-            mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-                const responseHeaders = { ...details.responseHeaders };
-
-                // Remove restrictive headers that break functionality in an Electron wrapper
-                Object.keys(responseHeaders).forEach(key => {
-                    const lowerKey = key.toLowerCase();
-                    if (lowerKey === 'content-security-policy' || 
-                        lowerKey === 'x-frame-options' || 
-                        lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy' ||
-                        lowerKey === 'permissions-policy' ||
-                        lowerKey === 'feature-policy') {
-                        delete responseHeaders[key];
-                    }
-                });
-
-                // Fix CORS: ensure Access-Control-Allow-Origin matches the actual origin (no trailing slash)
-                Object.keys(responseHeaders).forEach(key => {
-                    if (key.toLowerCase() === 'access-control-allow-origin') {
-                        const val = responseHeaders[key];
-                        if (Array.isArray(val)) {
-                            responseHeaders[key] = val.map(v => v.replace(/\/+$/, ''));
-                        } else if (typeof val === 'string') {
-                            responseHeaders[key] = val.replace(/\/+$/, '');
-                        }
-                    }
-                });
-
-                callback({ responseHeaders });
-            });
-
-            mainWindow.loadURL(appConfig.url, {
-                userAgent: appConfig.userAgent,
-                httpReferrer: appConfig.url
-            }).catch(r => console.error('Error loading URL:', r));
-
-            mainWindow.webContents.once('ready-to-show', () => {
-                const bounds = mainWindow.getBounds();
-                console.log(`[Window] Main window ready to show at ${bounds.x},${bounds.y} (${bounds.width}x${bounds.height})`);
-                if (mainWindow) {
-                    mainWindow.show();
-                    mainWindow.focus();
-                }
-            });
-
-            mainWindow.webContents.on('did-finish-load', () => {
-                console.log('[Window] Main window finished loading');
-                if (mainWindow && !mainWindow.isVisible()) {
-                    mainWindow.show();
-                }
-                // Log window visibility state
-                console.log(`[Window] Visibility: ${mainWindow.isVisible()}, Focused: ${mainWindow.isFocused()}`);
-            });
-
-            mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-                console.error(`[Window] Main window failed to load: ${errorDescription} (${errorCode}) at ${validatedURL}`);
-            });
-
-            mainWindow.removeMenu();
-
-            // Setup context menu for editable fields and selections to support right-click across devices
-            mainWindow.webContents.on('context-menu', (event, params) => {
-                const { isEditable, selectionText, misspelledWord, dictionarySuggestions } = params;
-                const template = [];
-
-                // Spelling suggestions
-                if (misspelledWord && Array.isArray(dictionarySuggestions) && dictionarySuggestions.length) {
-                    for (const suggestion of dictionarySuggestions.slice(0, 6)) {
-                        template.push({
-                            label: suggestion,
-                            click: () => mainWindow.webContents.replaceMisspelling(suggestion),
-                        });
-                    }
-                    template.push({ type: 'separator' });
-                }
-
-                if (isEditable) {
-                    template.push(
-                        { role: 'undo' },
-                        { role: 'redo' },
-                        { type: 'separator' },
-                        { role: 'cut' },
-                        { role: 'copy' },
-                        { role: 'paste' },
-                        { role: 'pasteAndMatchStyle' },
-                        { type: 'separator' },
-                        { role: 'selectAll' },
-                    );
-                } else if (selectionText && selectionText.trim().length > 0) {
-                    template.push(
-                        { role: 'copy' },
-                        { type: 'separator' },
-                        { role: 'selectAll' },
-                    );
-                } else {
-                    // No relevant action — do not show menu
-                    return;
-                }
-
-                const menu = Menu.buildFromTemplate(template);
-                menu.popup({ window: mainWindow });
-            });
-
-            mainWindow.on('focus', () => {
-                if (process.platform === 'win32') {
-                    mainWindow.flashFrame(false);
-                }
-            });
-
-            mainWindow.on('closed', () => {
-                mainWindow = null;
-                globalShortcut.unregisterAll();
-            });
-
-            // Removed redundant onBeforeSendHeaders call
-
-            mainWindow.on('resize', () => {
-                mainWindowState.saveState(mainWindow);
-            });
-
-            mainWindow.on('move', () => {
-                mainWindowState.saveState(mainWindow);
-            });
-
-            mainWindowState.manage(mainWindow);
-
-            if (!appConfig.notifications) {
-                console.log('Notifications disabled');
-                session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-                    const allowedPermissions = appConfig.permissions || [];
-
-                    const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
-                    if (alwaysAllow.includes(permission)) {
-                        console.log(`Default session permission ${permission} allowed (media/screen-sharing)`);
-                        callback(true);
-                        return;
-                    }
-
-                    if (permission === 'notifications' || permission === 'push' || allowedPermissions.includes(permission)) {
-                        callback(true);
-                    } else {
-                        callback(false);
-                    }
-                });
-            }
-
-            setupZoomControls(mainWindow);
-            setupExternalLinks(mainWindow);
-            setupCloseEvent(mainWindow);
-            setupNetworkMonitoring(mainWindow);
-
-            if (!isSnap) {
-                enableLightPerformanceMode();
-            }
-            // Setup download management for this window's session
-            setupDownloadHandler(mainWindow);
-
-            return mainWindow;
-
-        } catch (error) {
-            console.error('[Window] Failed to create window:', error);
-
-            // Fallback window creation
-            const fallbackWindow = new BrowserWindow({
-                width: 1200,
-                height: 800,
-                icon: icon,
-                show: false,
-                webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    webSecurity: true,
-                }
-            });
-
-            fallbackWindow.loadURL(appConfig.url);
-            console.log('[Window] Created fallback window');
-            fallbackWindow.show();
-            return fallbackWindow;
-        }
-    }
-
-    function getOrCreateMainWindow() {
-        if (!mainWindow) {
-            createWindow();
-        }
-        return mainWindow;
-    }
-
-    function setupDownloadHandler(window) {
-        const targetSession = window ? window.webContents.session : session.defaultSession;
-        targetSession.on('will-download', (event, item) => {
-            const fileName = item.getFilename();
-            const totalBytes = item.getTotalBytes();
-
-            item.setSaveDialogOptions({
-                title: 'Save Download',
-                defaultPath: path.join(app.getPath('downloads'), fileName)
-            });
-
-            console.log(`Starting download of ${fileName}`);
-
-            item.on('updated', (event, state) => {
-                if (state === 'interrupted') {
-                    console.log('Download interrupted.');
-                } else if (state === 'progressing') {
-                    console.log(`Progress: ${item.getReceivedBytes()} / ${totalBytes}`);
-                }
-            });
-
-            item.once('done', (event, state) => {
-                if (state === 'completed') {
-                    console.log(`Download saved to ${item.getSavePath()}`);
-                } else if (state === 'cancelled') {
-                    console.log('Download canceled by the user.');
-                } else {
-                    console.error(`Download failed: ${state}`);
-                }
-            });
-        });
-    }
-
-    function setupExternalLinks(window) {
-        const {shell} = require('electron');
-
-        const openExternalUrl = (url) => {
-            shell.openExternal(url).catch(err => console.error('Error loading URL:', err));
-            return {action: 'deny'};
-        };
-
-        window.webContents.setWindowOpenHandler((details) => {
-            const allowedUrls = [
-                new URL(appConfig.url).hostname,
-                'login.microsoftonline.com',
-                'about:blank'
-            ];
-
-            const forceNewWindowUrls = [
-                'statics.teams.cdn.office.net/evergreen-assets/safelinks'
-            ];
-
-            if (forceNewWindowUrls.some(url => details.url.includes(url))) {
-                return openExternalUrl(details.url);
-            }
-
-            if (allowedUrls.some(url => details.url.includes(url))) {
-                return {
-                    action: 'allow',
-                    overrideBrowserWindowOptions: {
-                        menuBarVisible: true,
-                        toolbar: true,
-                        frame: true,
-                    }
-                };
-            }
-
-            if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
-                return openExternalUrl(details.url);
-            }
-
-            return {action: 'deny'};
-        });
-    }
-
-    function setupCloseEvent(mainWindow) {
-        mainWindow.on('close', (event) => {
-            if (!app.isQuitting) {
-                event.preventDefault();
-                mainWindow.hide();
-                return false;
-            }
-            return true;
-        });
-
-        app.isQuitting = false;
-    }
-
-    app.whenReady().then(async () => {
-        try {
-            // Setup error handling first
-            setupGlobalErrorHandling();
-
-            // Validate configuration
-            validateAppConfig(appConfig);
-
-            // Setup enhanced memory management
-            setupEnhancedMemoryManagement();
-
-            // Enhanced security headers
-            session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-                const responseHeaders = { ...details.responseHeaders };
-                // Remove existing CSP, X-Frame-Options, COOP/CORP, and Permissions-Policy to avoid conflicts
-                Object.keys(responseHeaders).forEach(key => {
-                    const lowerKey = key.toLowerCase();
-                    if (lowerKey === 'content-security-policy' || 
-                        lowerKey === 'x-frame-options' || 
-                        lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy' ||
-                        lowerKey === 'permissions-policy' ||
-                        lowerKey === 'feature-policy') {
-                        delete responseHeaders[key];
-                    }
-                });
-
-                callback({
-                    responseHeaders: {
-                        ...responseHeaders,
-                        'X-Content-Type-Options': ['nosniff']
-                    }
-                });
-            });
-
-            await session.defaultSession.clearCache();
-
-            // Log allowlisted IPC channels count for security audit
-            console.log(`[IPC Security] Initialized with ${allowedChannels.size} allowlisted channels`);
-
-            // IPC Handlers for screen sharing and preview management
-            screenShare.setupIpcHandlers(ipcMain, () => mainWindow);
-
-            // Request media access early on macOS to avoid mid-call prompts
-            if (process.platform === 'darwin') {
-                requestMediaAccess();
-            }
-
-            loadModules();
-            mainWindow = getOrCreateMainWindow();
-
-            await setupTray(mainWindow, {
-                name: appConfig.name,
-                iconPath: trayIcon
-            });
-
-            // Update tray tooltip when account info is detected
-            const { updateTrayTooltip } = require('./main/tray');
-            ipcMain.on('account-info-changed', (_event, data) => {
-                if (data && typeof data.name === 'string' && data.name.length > 0 && data.name.length < 200) {
-                    updateTrayTooltip(data.name);
-                }
-            });
-
-            setupNotifications(mainWindow, icon);
-
-            // Temporary: forward renderer console for DOM diagnostics
-            mainWindow.webContents.on('console-message', ({ message }) => {
-                if (message && message.includes('[Outlook')) console.log(`[R] ${message}`);
-            });
-
-            setInterval(() => {
-                if (global.gc) {
-                    global.gc();
-                }
-            }, 60000);
-
-            console.log('[App] Application initialized successfully');
-
-        } catch (error) {
-            console.error('[App] Failed to initialize application:', error);
-            app.quit();
-        }
     });
 
-    function enableLightPerformanceMode() {
-        mainWindow.webContents.executeJavaScript(`
+    console.log('Zoom controls setup completed');
+  }
+
+  function createWindow() {
+    try {
+      const mainWindowState = windowStateKeeper({
+        defaultWidth: appConfig.windowOptions.width,
+        defaultHeight: appConfig.windowOptions.height,
+        file: 'window-state.json'
+      });
+
+      mainWindow = new BrowserWindow({
+        x: mainWindowState.x,
+        y: mainWindowState.y,
+        width: mainWindowState.width,
+        height: mainWindowState.height,
+        minWidth: appConfig.windowOptions.minWidth,
+        minHeight: appConfig.windowOptions.minHeight,
+        icon: icon,
+        title: appConfig.name,
+        show: false,
+        backgroundColor: '#ffffff', // Set background color to verify window presence
+        webPreferences: {
+          plugins: true, // Enable plugin support for Widevine DRM
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.resolve(__dirname, 'preload', 'index.js'),
+          autoplayPolicy: 'user-gesture-required',
+          partition: 'persist:' + appConfig.snapName,
+          webgl: true,
+          allowRunningInsecureContent: false,
+          webSecurity: true,
+          backgroundThrottling: false,
+          offscreen: false,
+          zoomFactor: 1.0,
+        },
+      });
+
+      const targetSession = mainWindow.webContents.session;
+
+      targetSession.webRequest.onBeforeSendHeaders(
+        (details, callback) => {
+          const url = details.url;
+          const appOrigin = appConfig.url.replace(/\/+$/, '');
+          const requestOrigin = details.requestHeaders['Origin'] || '';
+
+          // Only override Origin/Referer when the request originates from our app's origin.
+          // Do NOT override for sub-frames (e.g. login.microsoftonline.com) as that breaks CORS.
+          if (requestOrigin === appOrigin || requestOrigin === appConfig.url || !requestOrigin) {
+            if (url.includes('cloud.microsoft') || url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
+              details.requestHeaders['Origin'] = appOrigin;
+              details.requestHeaders['Referer'] = appConfig.url;
+            }
+          }
+          callback({requestHeaders: details.requestHeaders});
+        }
+      );
+
+      mainWindow.webContents.setUserAgent(appConfig.userAgent);
+      mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        console.log(`Permission requested: ${permission}`);
+        const allowedPermissions = appConfig.permissions || [];
+
+        // Always allow media, screen-sharing, and clipboard permissions
+        const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
+        if (alwaysAllow.includes(permission)) {
+          console.log(`Permission ${permission} allowed (media/screen-sharing/clipboard)`);
+          callback(true);
+          return;
+        }
+
+        const allowed = allowedPermissions.includes(permission);
+        console.log(`Permission ${permission} ${allowed ? 'allowed' : 'denied'}`);
+        callback(allowed);
+      });
+
+      // Handle synchronous permission checks (navigator.permissions.query, getUserMedia checks)
+      mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+        const allowedPermissions = appConfig.permissions || [];
+        const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen', 'clipboard-read', 'clipboard-sanitized-write'];
+        if (alwaysAllow.includes(permission)) {
+          return true;
+        }
+        return allowedPermissions.includes(permission);
+      });
+
+      if (appConfig.snapName === 'teams-ew') {
+        // Set up screen sharing via extracted module
+        screenShare.init(mainWindow);
+      }
+
+      mainWindow.webContents.on('console-message', ({ message }) => {
+        if (message && message.includes('Uncaught (in promise) AbortError: Registration failed - push service not available')) {
+          ipcMain.emit('new-notification', null, {
+            title: 'System notifications are inactive',
+            body: 'Please switch application notification mode to "Alert" for proper notifications.'
+          });
+        }
+      });
+
+      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+
+        // Remove restrictive headers that break functionality in an Electron wrapper
+        Object.keys(responseHeaders).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey === 'content-security-policy' || 
+                        lowerKey === 'x-frame-options' || 
+                        lowerKey === 'cross-origin-opener-policy' ||
+                        lowerKey === 'cross-origin-resource-policy' ||
+                        lowerKey === 'permissions-policy' ||
+                        lowerKey === 'feature-policy') {
+            delete responseHeaders[key];
+          }
+        });
+
+        // Fix CORS: ensure Access-Control-Allow-Origin matches the actual origin (no trailing slash)
+        Object.keys(responseHeaders).forEach(key => {
+          if (key.toLowerCase() === 'access-control-allow-origin') {
+            const val = responseHeaders[key];
+            if (Array.isArray(val)) {
+              responseHeaders[key] = val.map(v => v.replace(/\/+$/, ''));
+            } else if (typeof val === 'string') {
+              responseHeaders[key] = val.replace(/\/+$/, '');
+            }
+          }
+        });
+
+        callback({ responseHeaders });
+      });
+
+      mainWindow.loadURL(appConfig.url, {
+        userAgent: appConfig.userAgent,
+        httpReferrer: appConfig.url
+      }).catch(r => console.error('Error loading URL:', r));
+
+      mainWindow.webContents.once('ready-to-show', () => {
+        const bounds = mainWindow.getBounds();
+        console.log(`[Window] Main window ready to show at ${bounds.x},${bounds.y} (${bounds.width}x${bounds.height})`);
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+
+      mainWindow.webContents.on('did-finish-load', () => {
+        console.log('[Window] Main window finished loading');
+        if (mainWindow && !mainWindow.isVisible()) {
+          mainWindow.show();
+        }
+        // Log window visibility state
+        console.log(`[Window] Visibility: ${mainWindow.isVisible()}, Focused: ${mainWindow.isFocused()}`);
+      });
+
+      mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.error(`[Window] Main window failed to load: ${errorDescription} (${errorCode}) at ${validatedURL}`);
+      });
+
+      mainWindow.removeMenu();
+
+      // Setup context menu for editable fields and selections to support right-click across devices
+      mainWindow.webContents.on('context-menu', (event, params) => {
+        const { isEditable, selectionText, misspelledWord, dictionarySuggestions } = params;
+        const template = [];
+
+        // Spelling suggestions
+        if (misspelledWord && Array.isArray(dictionarySuggestions) && dictionarySuggestions.length) {
+          for (const suggestion of dictionarySuggestions.slice(0, 6)) {
+            template.push({
+              label: suggestion,
+              click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+            });
+          }
+          template.push({ type: 'separator' });
+        }
+
+        if (isEditable) {
+          template.push(
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'pasteAndMatchStyle' },
+            { type: 'separator' },
+            { role: 'selectAll' },
+          );
+        } else if (selectionText && selectionText.trim().length > 0) {
+          template.push(
+            { role: 'copy' },
+            { type: 'separator' },
+            { role: 'selectAll' },
+          );
+        } else {
+          // No relevant action — do not show menu
+          return;
+        }
+
+        const menu = Menu.buildFromTemplate(template);
+        menu.popup({ window: mainWindow });
+      });
+
+      mainWindow.on('focus', () => {
+        if (process.platform === 'win32') {
+          mainWindow.flashFrame(false);
+        }
+      });
+
+      mainWindow.on('closed', () => {
+        mainWindow = null;
+        globalShortcut.unregisterAll();
+      });
+
+      // Removed redundant onBeforeSendHeaders call
+
+      mainWindow.on('resize', () => {
+        mainWindowState.saveState(mainWindow);
+      });
+
+      mainWindow.on('move', () => {
+        mainWindowState.saveState(mainWindow);
+      });
+
+      mainWindowState.manage(mainWindow);
+
+      if (!appConfig.notifications) {
+        console.log('Notifications disabled');
+        session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+          const allowedPermissions = appConfig.permissions || [];
+
+          const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
+          if (alwaysAllow.includes(permission)) {
+            console.log(`Default session permission ${permission} allowed (media/screen-sharing)`);
+            callback(true);
+            return;
+          }
+
+          if (permission === 'notifications' || permission === 'push' || allowedPermissions.includes(permission)) {
+            callback(true);
+          } else {
+            callback(false);
+          }
+        });
+      }
+
+      setupZoomControls(mainWindow);
+      setupExternalLinks(mainWindow);
+      setupCloseEvent(mainWindow);
+      setupNetworkMonitoring(mainWindow);
+
+      if (!isSnap) {
+        enableLightPerformanceMode();
+      }
+      // Setup download management for this window's session
+      setupDownloadHandler(mainWindow);
+
+      return mainWindow;
+
+    } catch (error) {
+      console.error('[Window] Failed to create window:', error);
+
+      // Fallback window creation
+      const fallbackWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        icon: icon,
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          webSecurity: true,
+        }
+      });
+
+      fallbackWindow.loadURL(appConfig.url);
+      console.log('[Window] Created fallback window');
+      fallbackWindow.show();
+      return fallbackWindow;
+    }
+  }
+
+  function getOrCreateMainWindow() {
+    if (!mainWindow) {
+      createWindow();
+    }
+    return mainWindow;
+  }
+
+  function setupDownloadHandler(window) {
+    const targetSession = window ? window.webContents.session : session.defaultSession;
+    targetSession.on('will-download', (event, item) => {
+      const fileName = item.getFilename();
+      const totalBytes = item.getTotalBytes();
+
+      item.setSaveDialogOptions({
+        title: 'Save Download',
+        defaultPath: path.join(app.getPath('downloads'), fileName)
+      });
+
+      console.log(`Starting download of ${fileName}`);
+
+      item.on('updated', (event, state) => {
+        if (state === 'interrupted') {
+          console.log('Download interrupted.');
+        } else if (state === 'progressing') {
+          console.log(`Progress: ${item.getReceivedBytes()} / ${totalBytes}`);
+        }
+      });
+
+      item.once('done', (event, state) => {
+        if (state === 'completed') {
+          console.log(`Download saved to ${item.getSavePath()}`);
+        } else if (state === 'cancelled') {
+          console.log('Download canceled by the user.');
+        } else {
+          console.error(`Download failed: ${state}`);
+        }
+      });
+    });
+  }
+
+  function setupExternalLinks(window) {
+    const {shell} = require('electron');
+
+    const openExternalUrl = (url) => {
+      shell.openExternal(url).catch(err => console.error('Error loading URL:', err));
+      return {action: 'deny'};
+    };
+
+    window.webContents.setWindowOpenHandler((details) => {
+      const allowedUrls = [
+        new URL(appConfig.url).hostname,
+        'login.microsoftonline.com',
+        'about:blank'
+      ];
+
+      const forceNewWindowUrls = [
+        'statics.teams.cdn.office.net/evergreen-assets/safelinks'
+      ];
+
+      if (forceNewWindowUrls.some(url => details.url.includes(url))) {
+        return openExternalUrl(details.url);
+      }
+
+      if (allowedUrls.some(url => details.url.includes(url))) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            menuBarVisible: true,
+            toolbar: true,
+            frame: true,
+          }
+        };
+      }
+
+      if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
+        return openExternalUrl(details.url);
+      }
+
+      return {action: 'deny'};
+    });
+  }
+
+  function setupCloseEvent(mainWindow) {
+    mainWindow.on('close', (event) => {
+      if (!app.isQuitting) {
+        event.preventDefault();
+        mainWindow.hide();
+        return false;
+      }
+      return true;
+    });
+
+    app.isQuitting = false;
+  }
+
+  app.whenReady().then(async () => {
+    try {
+      // Setup error handling first
+      setupGlobalErrorHandling();
+
+      // Validate configuration
+      validateAppConfig(appConfig);
+
+      // Setup enhanced memory management
+      setupEnhancedMemoryManagement();
+
+      // Enhanced security headers
+      session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+        // Remove existing CSP, X-Frame-Options, COOP/CORP, and Permissions-Policy to avoid conflicts
+        Object.keys(responseHeaders).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey === 'content-security-policy' || 
+                        lowerKey === 'x-frame-options' || 
+                        lowerKey === 'cross-origin-opener-policy' ||
+                        lowerKey === 'cross-origin-resource-policy' ||
+                        lowerKey === 'permissions-policy' ||
+                        lowerKey === 'feature-policy') {
+            delete responseHeaders[key];
+          }
+        });
+
+        callback({
+          responseHeaders: {
+            ...responseHeaders,
+            'X-Content-Type-Options': ['nosniff']
+          }
+        });
+      });
+
+      await session.defaultSession.clearCache();
+
+      // Log allowlisted IPC channels count for security audit
+      console.log(`[IPC Security] Initialized with ${allowedChannels.size} allowlisted channels`);
+
+      // IPC Handlers for screen sharing and preview management
+      screenShare.setupIpcHandlers(ipcMain, () => mainWindow);
+
+      // Request media access early on macOS to avoid mid-call prompts
+      if (process.platform === 'darwin') {
+        requestMediaAccess();
+      }
+
+      loadModules();
+      mainWindow = getOrCreateMainWindow();
+
+      await setupTray(mainWindow, {
+        name: appConfig.name,
+        iconPath: trayIcon
+      });
+
+      // Update tray tooltip when account info is detected
+      const { updateTrayTooltip } = require('./main/tray');
+      ipcMain.on('account-info-changed', (_event, data) => {
+        if (data && typeof data.name === 'string' && data.name.length > 0 && data.name.length < 200) {
+          updateTrayTooltip(data.name);
+        }
+      });
+
+      setupNotifications(mainWindow, icon);
+
+      // Temporary: forward renderer console for DOM diagnostics
+      mainWindow.webContents.on('console-message', ({ message }) => {
+        if (message && message.includes('[Outlook')) console.log(`[R] ${message}`);
+      });
+
+      setInterval(() => {
+        if (global.gc) {
+          global.gc();
+        }
+      }, 60000);
+
+      console.log('[App] Application initialized successfully');
+
+    } catch (error) {
+      console.error('[App] Failed to initialize application:', error);
+      app.quit();
+    }
+  });
+
+  function enableLightPerformanceMode() {
+    mainWindow.webContents.executeJavaScript(`
     document.documentElement.style.setProperty('--animation-duration', '0s');
     document.querySelectorAll('img').forEach(img => {
       img.style.imageRendering = 'auto';
     });`).catch(r => console.error('Error executing JS:', r));
+  }
+
+  // macOS media permissions handler
+  async function requestMediaAccess() {
+    if (process.platform !== 'darwin') {
+      return;
     }
 
-    // macOS media permissions handler
-    async function requestMediaAccess() {
-        if (process.platform !== 'darwin') {
-            return;
-        }
+    const {systemPreferences} = require('electron');
 
-        const {systemPreferences} = require('electron');
+    ['camera', 'microphone'].forEach(async (permission) => {
+      try {
+        const status = await systemPreferences.askForMediaAccess(permission);
+        console.log(`[macOS Permissions] ${permission} access status: ${status}`);
+      } catch (error) {
+        console.error(`[macOS Permissions] Error requesting ${permission} access:`, error);
+      }
+    });
+  }
 
-        ['camera', 'microphone'].forEach(async (permission) => {
-            try {
-                const status = await systemPreferences.askForMediaAccess(permission);
-                console.log(`[macOS Permissions] ${permission} access status: ${status}`);
-            } catch (error) {
-                console.error(`[macOS Permissions] Error requesting ${permission} access:`, error);
-            }
-        });
+  app.on('window-all-closed', () => {
+    globalShortcut.unregisterAll();
+
+    if (process.platform !== 'darwin') {
+      app.quit();
     }
+  });
 
-    app.on('window-all-closed', () => {
-        globalShortcut.unregisterAll();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow();
+    }
+  });
 
-        if (process.platform !== 'darwin') {
-            app.quit();
-        }
-    });
-
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            mainWindow = createWindow();
-        }
-    });
-
-    app.on('will-quit', () => {
-        globalShortcut.unregisterAll();
-    });
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
 }
