@@ -37,8 +37,14 @@ Add the KLR Office Wrappers repository and install with `apt`:
 # Add the GPG key
 curl -fsSL https://kilurion.github.io/klr.office.wrappers/gpg.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/klr-office-wrappers.gpg
 
-# Add the repository
-echo "deb [signed-by=/usr/share/keyrings/klr-office-wrappers.gpg] https://kilurion.github.io/klr.office.wrappers stable main" | sudo tee /etc/apt/sources.list.d/klr-office-wrappers.list
+# Add the repository (deb822 format, survives Ubuntu release upgrades)
+sudo tee /etc/apt/sources.list.d/klr-office-wrappers.sources >/dev/null <<'EOF'
+Types: deb
+URIs: https://kilurion.github.io/klr.office.wrappers
+Suites: stable
+Components: main
+Signed-By: /usr/share/keyrings/klr-office-wrappers.gpg
+EOF
 
 # Install
 sudo apt update
@@ -46,6 +52,8 @@ sudo apt install outlook-ew teams-ew
 ```
 
 Updates are delivered automatically via `sudo apt update && sudo apt upgrade`.
+
+> **Upgraded Ubuntu and stopped receiving updates?** The release upgrader may have disabled an old one-line `klr-office-wrappers.list` entry (renamed to `.list.disabled`). Re-add the repository with the command above and remove the `.list.disabled` file.
 
 ### From GitHub Releases
 
