@@ -391,6 +391,8 @@ if (!gotTheLock) {
         backgroundColor: '#ffffff', // Set background color to verify window presence
         webPreferences: {
           plugins: true, // Enable plugin support for Widevine DRM
+          // No passkey/WebAuthn UI in Electron on Linux; hide WebAuthn so Microsoft offers password sign-in
+          disableBlinkFeatures: 'WebAuth',
           nodeIntegration: false,
           contextIsolation: true,
           preload: path.resolve(__dirname, 'preload', 'index.js'),
@@ -636,6 +638,7 @@ if (!gotTheLock) {
         icon: icon,
         show: false,
         webPreferences: {
+          disableBlinkFeatures: 'WebAuth',
           nodeIntegration: false,
           contextIsolation: true,
           webSecurity: true,
@@ -806,6 +809,9 @@ if (!gotTheLock) {
             skipTaskbar: false,
             backgroundColor: '#1b1a19',
             title: `${appConfig.name} Sign in`,
+            webPreferences: {
+              disableBlinkFeatures: 'WebAuth',
+            },
           }
         };
       }
