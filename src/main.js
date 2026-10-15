@@ -237,6 +237,48 @@ if (!gotTheLock) {
     }
   });
 
+  // Electron has no passkey/WebAuthn UI on Linux, so Microsoft's FIDO bridge page hangs.
+  // Follow its cancelUrl instead so Microsoft offers the other sign-in methods.
+  const getFidoBridgeCancelUrl = (rawUrl) => {
+    try {
+      const parsedUrl = new URL(rawUrl);
+      const host = parsedUrl.hostname.toLowerCase();
+      if (!/\/bridge\/fido$/i.test(parsedUrl.pathname) ||
+        !['login.microsoft.com', 'login.microsoftonline.com'].includes(host)) {
+        return null;
+      }
+
+      const cancelUrl = new URL(parsedUrl.searchParams.get('cancelUrl'));
+      if (cancelUrl.protocol !== 'https:' || cancelUrl.hostname.toLowerCase() !== 'login.microsoftonline.com') {
+        return null;
+      }
+      return cancelUrl.toString();
+    } catch {
+      return null;
+    }
+  };
+
+  app.on('web-contents-created', (_event, contents) => {
+    let lastFidoFallback = 0;
+
+    contents.on('will-navigate', (event) => {
+      const cancelUrl = getFidoBridgeCancelUrl(event.url);
+      if (!cancelUrl) {
+        return;
+      }
+
+      if (Date.now() - lastFidoFallback < 5000) {
+        console.warn('[Auth] Passkey sign-in requested again, not redirecting to avoid a loop');
+        return;
+      }
+
+      lastFidoFallback = Date.now();
+      event.preventDefault();
+      console.log('[Auth] Passkey sign-in is not supported, falling back to other sign-in methods');
+      contents.loadURL(cancelUrl);
+    });
+  });
+
   function setupZoomControls(window) {
 
     const zoomIn = () => {
@@ -323,521 +365,6 @@ if (!gotTheLock) {
           }
         }, { passive: false });
       `).catch(err => console.log('Error injecting zoom script:', err));
-<<<<<<< HEAD
-=======
-        });
-
-        console.log('Zoom controls setup completed');
-    }
-
-    function createWindow() {
-        try {
-            const mainWindowState = windowStateKeeper({
-                defaultWidth: appConfig.windowOptions.width,
-                defaultHeight: appConfig.windowOptions.height,
-                file: 'window-state.json'
-            });
-
-            mainWindow = new BrowserWindow({
-                x: mainWindowState.x,
-                y: mainWindowState.y,
-                width: mainWindowState.width,
-                height: mainWindowState.height,
-                minWidth: appConfig.windowOptions.minWidth,
-                minHeight: appConfig.windowOptions.minHeight,
-                icon: icon,
-                title: appConfig.name,
-                show: false,
-                backgroundColor: '#ffffff', // Set background color to verify window presence
-                webPreferences: {
-                    plugins: true, // Enable plugin support for Widevine DRM
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    preload: path.resolve(__dirname, 'preload', 'index.js'),
-                    autoplayPolicy: 'user-gesture-required',
-                    partition: 'persist:' + appConfig.snapName,
-                    webgl: true,
-                    allowRunningInsecureContent: false,
-                    webSecurity: true,
-                    backgroundThrottling: false,
-                    offscreen: false,
-                    zoomFactor: 1.0,
-                },
-            });
-
-            const targetSession = mainWindow.webContents.session;
-
-            targetSession.webRequest.onBeforeSendHeaders(
-                (details, callback) => {
-                    const url = details.url;
-                    const appOrigin = appConfig.url.replace(/\/+$/, '');
-                    const requestOrigin = details.requestHeaders['Origin'] || '';
-
-                    // Only override Origin/Referer when the request originates from our app's origin.
-                    // Do NOT override for sub-frames (e.g. login.microsoftonline.com) as that breaks CORS.
-                    if (requestOrigin === appOrigin || requestOrigin === appConfig.url || !requestOrigin) {
-                        if (url.includes('microsoft.com') || url.includes('office.com') || url.includes('office365.com') || url.includes('live.com') || url.includes('msftauth.net') || url.includes('msauth.net') || url.includes('office.net')) {
-                            details.requestHeaders['Origin'] = appOrigin;
-                            details.requestHeaders['Referer'] = appConfig.url;
-                        }
-                    }
-                    callback({requestHeaders: details.requestHeaders});
-                }
-            );
-
-            mainWindow.webContents.setUserAgent(appConfig.userAgent);
-            mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-                console.log(`Permission requested: ${permission}`);
-                const allowedPermissions = appConfig.permissions || [];
-
-                // Always allow media and screen-sharing permissions
-                const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
-                if (alwaysAllow.includes(permission)) {
-                    console.log(`Permission ${permission} allowed (media/screen-sharing)`);
-                    callback(true);
-                    return;
-                }
-
-                const allowed = allowedPermissions.includes(permission);
-                console.log(`Permission ${permission} ${allowed ? 'allowed' : 'denied'}`);
-                callback(allowed);
-            });
-
-            // Handle synchronous permission checks (navigator.permissions.query, getUserMedia checks)
-            mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-                const allowedPermissions = appConfig.permissions || [];
-                const alwaysAllow = ['media', 'camera', 'microphone', 'display-capture', 'screen'];
-                if (alwaysAllow.includes(permission)) {
-                    return true;
-                }
-                return allowedPermissions.includes(permission);
-            });
-
-            if (appConfig.snapName === 'teams-ew') {
-                // Set up screen sharing via extracted module
-                screenShare.init(mainWindow);
-            }
-
-            mainWindow.webContents.on('console-message', (event, level, message) => {
-                if (message && message.includes('Uncaught (in promise) AbortError: Registration failed - push service not available')) {
-                    ipcMain.emit('new-notification', null, {
-                        title: 'System notifications are inactive',
-                        body: 'Please switch application notification mode to "Alert" for proper notifications.'
-                    });
-                }
-            });
-
-            mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-                const responseHeaders = { ...details.responseHeaders };
-
-                // Remove restrictive headers that break functionality in an Electron wrapper
-                Object.keys(responseHeaders).forEach(key => {
-                    const lowerKey = key.toLowerCase();
-                    if (lowerKey === 'content-security-policy' || 
-                        lowerKey === 'x-frame-options' || 
-                        lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy' ||
-                        lowerKey === 'permissions-policy' ||
-                        lowerKey === 'feature-policy') {
-                        delete responseHeaders[key];
-                    }
-                });
-
-                // Fix CORS: ensure Access-Control-Allow-Origin matches the actual origin (no trailing slash)
-                Object.keys(responseHeaders).forEach(key => {
-                    if (key.toLowerCase() === 'access-control-allow-origin') {
-                        const val = responseHeaders[key];
-                        if (Array.isArray(val)) {
-                            responseHeaders[key] = val.map(v => v.replace(/\/+$/, ''));
-                        } else if (typeof val === 'string') {
-                            responseHeaders[key] = val.replace(/\/+$/, '');
-                        }
-                    }
-                });
-
-                callback({ responseHeaders });
-            });
-
-            mainWindow.loadURL(appConfig.url, {
-                userAgent: appConfig.userAgent,
-                httpReferrer: appConfig.url
-            }).catch(r => console.error('Error loading URL:', r));
-
-            mainWindow.webContents.once('ready-to-show', () => {
-                const bounds = mainWindow.getBounds();
-                console.log(`[Window] Main window ready to show at ${bounds.x},${bounds.y} (${bounds.width}x${bounds.height})`);
-                if (mainWindow) {
-                    mainWindow.show();
-                    mainWindow.focus();
-                }
-            });
-
-            mainWindow.webContents.on('did-finish-load', () => {
-                console.log('[Window] Main window finished loading');
-                if (mainWindow && !mainWindow.isVisible()) {
-                    mainWindow.show();
-                }
-                // Log window visibility state
-                console.log(`[Window] Visibility: ${mainWindow.isVisible()}, Focused: ${mainWindow.isFocused()}`);
-            });
-
-            mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-                console.error(`[Window] Main window failed to load: ${errorDescription} (${errorCode}) at ${validatedURL}`);
-            });
-
-            mainWindow.removeMenu();
-
-            // Setup context menu for editable fields and selections to support right-click across devices
-            mainWindow.webContents.on('context-menu', (event, params) => {
-                const { isEditable, selectionText, misspelledWord, dictionarySuggestions } = params;
-                const template = [];
-
-                // Spelling suggestions
-                if (misspelledWord && Array.isArray(dictionarySuggestions) && dictionarySuggestions.length) {
-                    for (const suggestion of dictionarySuggestions.slice(0, 6)) {
-                        template.push({
-                            label: suggestion,
-                            click: () => mainWindow.webContents.replaceMisspelling(suggestion),
-                        });
-                    }
-                    template.push({ type: 'separator' });
-                }
-
-                if (isEditable) {
-                    template.push(
-                        { role: 'undo' },
-                        { role: 'redo' },
-                        { type: 'separator' },
-                        { role: 'cut' },
-                        { role: 'copy' },
-                        { role: 'paste' },
-                        { role: 'pasteAndMatchStyle' },
-                        { type: 'separator' },
-                        { role: 'selectAll' },
-                    );
-                } else if (selectionText && selectionText.trim().length > 0) {
-                    template.push(
-                        { role: 'copy' },
-                        { type: 'separator' },
-                        { role: 'selectAll' },
-                    );
-                } else {
-                    // No relevant action — do not show menu
-                    return;
-                }
-
-                const menu = Menu.buildFromTemplate(template);
-                menu.popup({ window: mainWindow });
-            });
-
-            mainWindow.on('focus', () => {
-                if (process.platform === 'win32') {
-                    mainWindow.flashFrame(false);
-                }
-            });
-
-            mainWindow.on('closed', () => {
-                mainWindow = null;
-                globalShortcut.unregisterAll();
-            });
-
-            // Removed redundant onBeforeSendHeaders call
-
-            mainWindow.on('resize', () => {
-                mainWindowState.saveState(mainWindow);
-            });
-
-            mainWindow.on('move', () => {
-                mainWindowState.saveState(mainWindow);
-            });
-
-            mainWindowState.manage(mainWindow);
-
-            if (!appConfig.notifications) {
-                console.log('Notifications disabled');
-                session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-                    const allowedPermissions = appConfig.permissions || [];
-
-                    const alwaysAllow = ['camera', 'microphone', 'display-capture', 'screen'];
-                    if (alwaysAllow.includes(permission)) {
-                        console.log(`Default session permission ${permission} allowed (media/screen-sharing)`);
-                        callback(true);
-                        return;
-                    }
-
-                    if (permission === 'notifications' || permission === 'push' || allowedPermissions.includes(permission)) {
-                        callback(true);
-                    } else {
-                        callback(false);
-                    }
-                });
-            }
-
-            setupZoomControls(mainWindow);
-            setupExternalLinks(mainWindow);
-            setupCloseEvent(mainWindow);
-            setupNetworkMonitoring(mainWindow);
-
-            if (!isSnap) {
-                enableLightPerformanceMode();
-            }
-            // Setup download management for this window's session
-            setupDownloadHandler(mainWindow);
-
-            return mainWindow;
-
-        } catch (error) {
-            console.error('[Window] Failed to create window:', error);
-
-            // Fallback window creation
-            const fallbackWindow = new BrowserWindow({
-                width: 1200,
-                height: 800,
-                icon: icon,
-                show: false,
-                webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    webSecurity: true,
-                }
-            });
-
-            fallbackWindow.loadURL(appConfig.url);
-            console.log('[Window] Created fallback window');
-            fallbackWindow.show();
-            return fallbackWindow;
-        }
-    }
-
-    function getOrCreateMainWindow() {
-        if (!mainWindow) {
-            createWindow();
-        }
-        return mainWindow;
-    }
-
-    function setupDownloadHandler(window) {
-        const targetSession = window ? window.webContents.session : session.defaultSession;
-        targetSession.on('will-download', async (event, item) => {
-            const fileName = item.getFilename();
-            const totalBytes = item.getTotalBytes();
-
-            const {filePath, canceled} = await dialog.showSaveDialog({
-                title: 'Save Download',
-                defaultPath: path.join(app.getPath('downloads'), fileName)
-            });
-
-            if (canceled || !filePath) {
-                item.cancel();
-                console.log('Download canceled by the user.');
-                return;
-            }
-
-            item.setSavePath(filePath);
-            console.log(`Starting download of ${fileName}`);
-
-            item.on('updated', (event, state) => {
-                if (state === 'interrupted') {
-                    console.log('Download interrupted.');
-                } else if (state === 'progressing') {
-                    console.log(`Progress: ${item.getReceivedBytes()} / ${totalBytes}`);
-                }
-            });
-
-            item.once('done', (event, state) => {
-                if (state === 'completed') {
-                    console.log(`Download saved to ${filePath}`);
-                } else {
-                    console.error(`Download failed: ${state}`);
-                }
-            });
-        });
-    }
-
-    function setupExternalLinks(window) {
-        const {shell} = require('electron');
-
-        const centerChildWindow = (childWindow) => {
-            if (!window || window.isDestroyed() || !childWindow || childWindow.isDestroyed()) {
-                return;
-            }
-
-            const parentBounds = window.getBounds();
-            const childBounds = childWindow.getBounds();
-            const x = parentBounds.x + Math.max(0, Math.round((parentBounds.width - childBounds.width) / 2));
-            const y = parentBounds.y + Math.max(0, Math.round((parentBounds.height - childBounds.height) / 2));
-
-            childWindow.setBounds({
-                ...childBounds,
-                x,
-                y,
-            });
-        };
-
-        const revealChildWindow = (childWindow, details) => {
-            const reveal = () => {
-                if (!childWindow || childWindow.isDestroyed()) {
-                    return;
-                }
-
-                centerChildWindow(childWindow);
-                childWindow.show();
-                childWindow.focus();
-                childWindow.moveTop();
-                console.log(`[Window] Revealed child window for ${details.url}`);
-            };
-
-            childWindow.once('ready-to-show', reveal);
-            childWindow.webContents.on('did-finish-load', reveal);
-            childWindow.on('show', () => console.log(`[Window] Child window shown for ${details.url}`));
-        };
-
-        const openExternalUrl = (url) => {
-            shell.openExternal(url).catch(err => console.error('Error loading URL:', err));
-            return {action: 'deny'};
-        };
-
-        window.webContents.on('did-create-window', (childWindow, details) => {
-            console.log(`[Window] Child window created for ${details.url}`);
-
-            childWindow.setMenuBarVisibility(false);
-            childWindow.setAlwaysOnTop(true, 'floating');
-            childWindow.once('focus', () => {
-                if (!childWindow.isDestroyed()) {
-                    childWindow.setAlwaysOnTop(false);
-                }
-            });
-
-            revealChildWindow(childWindow, details);
-        });
-
-        window.webContents.setWindowOpenHandler((details) => {
-            const allowedUrls = [
-                new URL(appConfig.url).hostname,
-                'login.microsoftonline.com',
-                'about:blank'
-            ];
-
-            const forceNewWindowUrls = [
-                'statics.teams.cdn.office.net/evergreen-assets/safelinks'
-            ];
-
-            if (forceNewWindowUrls.some(url => details.url.includes(url))) {
-                return openExternalUrl(details.url);
-            }
-
-            if (allowedUrls.some(url => details.url.includes(url))) {
-                return {
-                    action: 'allow',
-                    overrideBrowserWindowOptions: {
-                        parent: window,
-                        show: false,
-                        width: 560,
-                        height: 760,
-                        minWidth: 420,
-                        minHeight: 560,
-                        autoHideMenuBar: true,
-                        menuBarVisible: true,
-                        frame: true,
-                        skipTaskbar: false,
-                        backgroundColor: '#1b1a19',
-                        title: `${appConfig.name} Sign in`,
-                    }
-                };
-            }
-
-            if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
-                return openExternalUrl(details.url);
-            }
-
-            return {action: 'deny'};
-        });
-    }
-
-    function setupCloseEvent(mainWindow) {
-        mainWindow.on('close', (event) => {
-            if (!app.isQuitting) {
-                event.preventDefault();
-                mainWindow.hide();
-                return false;
-            }
-            return true;
-        });
-
-        app.isQuitting = false;
-    }
-
-    app.whenReady().then(async () => {
-        try {
-            // Setup error handling first
-            setupGlobalErrorHandling();
-
-            // Validate configuration
-            validateAppConfig(appConfig);
-
-            // Setup enhanced memory management
-            setupEnhancedMemoryManagement();
-
-            // Enhanced security headers
-            session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-                const responseHeaders = { ...details.responseHeaders };
-                // Remove existing CSP, X-Frame-Options, COOP/CORP, and Permissions-Policy to avoid conflicts
-                Object.keys(responseHeaders).forEach(key => {
-                    const lowerKey = key.toLowerCase();
-                    if (lowerKey === 'content-security-policy' || 
-                        lowerKey === 'x-frame-options' || 
-                        lowerKey === 'cross-origin-opener-policy' ||
-                        lowerKey === 'cross-origin-resource-policy' ||
-                        lowerKey === 'permissions-policy' ||
-                        lowerKey === 'feature-policy') {
-                        delete responseHeaders[key];
-                    }
-                });
-
-                callback({
-                    responseHeaders: {
-                        ...responseHeaders,
-                        'X-Content-Type-Options': ['nosniff']
-                    }
-                });
-            });
-
-            await session.defaultSession.clearCache();
-
-            // Log allowlisted IPC channels count for security audit
-            console.log(`[IPC Security] Initialized with ${allowedChannels.size} allowlisted channels`);
-
-            // IPC Handlers for screen sharing and preview management
-            setupScreenSharingIpcHandlers();
-
-            // Request media access early on macOS to avoid mid-call prompts
-            if (process.platform === 'darwin') {
-                requestMediaAccess();
-            }
-
-            loadModules();
-            mainWindow = getOrCreateMainWindow();
-
-            await setupTray(mainWindow, {
-                name: appConfig.name,
-                iconPath: trayIcon
-            });
-
-            setupNotifications(mainWindow, icon);
-
-            setInterval(() => {
-                if (global.gc) {
-                    global.gc();
-                }
-            }, 60000);
-
-            console.log('[App] Application initialized successfully');
-
-        } catch (error) {
-            console.error('[App] Failed to initialize application:', error);
-            app.quit();
-        }
->>>>>>> e15e6af (Fix auth popup visibility on Linux)
     });
 
     console.log('Zoom controls setup completed');
@@ -1165,18 +692,96 @@ if (!gotTheLock) {
   function setupExternalLinks(window) {
     const {shell} = require('electron');
 
+    const shouldOpenInChildWindow = (rawUrl) => {
+      if (rawUrl === 'about:blank') {
+        return true;
+      }
+
+      try {
+        const parsedUrl = new URL(rawUrl);
+        const host = parsedUrl.hostname.toLowerCase();
+        const childWindowHosts = [
+          new URL(appConfig.url).hostname.toLowerCase(),
+          'login.microsoftonline.com',
+          'device.login.microsoftonline.com',
+          'login.live.com',
+          'account.live.com',
+          'account.activedirectory.windowsazure.com',
+          'autologon.microsoftazuread-sso.com'
+        ];
+        const childWindowHostSuffixes = [
+          '.microsoftonline.com',
+          '.live.com',
+          '.office.com',
+          '.office365.com',
+          '.microsoft.com',
+          '.windowsazure.com',
+          '.msauth.net',
+          '.msftauth.net'
+        ];
+
+        return childWindowHosts.includes(host) ||
+          childWindowHostSuffixes.some(suffix => host.endsWith(suffix));
+      } catch {
+        return false;
+      }
+    };
+
+    const centerChildWindow = (childWindow) => {
+      if (!window || window.isDestroyed() || !childWindow || childWindow.isDestroyed()) {
+        return;
+      }
+
+      const parentBounds = window.getBounds();
+      const childBounds = childWindow.getBounds();
+      const x = parentBounds.x + Math.max(0, Math.round((parentBounds.width - childBounds.width) / 2));
+      const y = parentBounds.y + Math.max(0, Math.round((parentBounds.height - childBounds.height) / 2));
+
+      childWindow.setBounds({
+        ...childBounds,
+        x,
+        y,
+      });
+    };
+
+    const revealChildWindow = (childWindow, details) => {
+      const reveal = () => {
+        if (!childWindow || childWindow.isDestroyed()) {
+          return;
+        }
+
+        centerChildWindow(childWindow);
+        childWindow.show();
+        childWindow.focus();
+        childWindow.moveTop();
+        console.log(`[Window] Revealed child window for ${details.url}`);
+      };
+
+      childWindow.once('ready-to-show', reveal);
+      childWindow.webContents.on('did-finish-load', reveal);
+      childWindow.on('show', () => console.log(`[Window] Child window shown for ${details.url}`));
+    };
+
     const openExternalUrl = (url) => {
       shell.openExternal(url).catch(err => console.error('Error loading URL:', err));
       return {action: 'deny'};
     };
 
-    window.webContents.setWindowOpenHandler((details) => {
-      const allowedUrls = [
-        new URL(appConfig.url).hostname,
-        'login.microsoftonline.com',
-        'about:blank'
-      ];
+    window.webContents.on('did-create-window', (childWindow, details) => {
+      console.log(`[Window] Child window created for ${details.url}`);
 
+      childWindow.setMenuBarVisibility(false);
+      childWindow.setAlwaysOnTop(true, 'floating');
+      childWindow.once('focus', () => {
+        if (!childWindow.isDestroyed()) {
+          childWindow.setAlwaysOnTop(false);
+        }
+      });
+
+      revealChildWindow(childWindow, details);
+    });
+
+    window.webContents.setWindowOpenHandler((details) => {
       const forceNewWindowUrls = [
         'statics.teams.cdn.office.net/evergreen-assets/safelinks'
       ];
@@ -1185,13 +790,22 @@ if (!gotTheLock) {
         return openExternalUrl(details.url);
       }
 
-      if (allowedUrls.some(url => details.url.includes(url))) {
+      if (shouldOpenInChildWindow(details.url)) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
+            parent: window,
+            show: false,
+            width: 560,
+            height: 760,
+            minWidth: 420,
+            minHeight: 560,
+            autoHideMenuBar: true,
             menuBarVisible: true,
-            toolbar: true,
             frame: true,
+            skipTaskbar: false,
+            backgroundColor: '#1b1a19',
+            title: `${appConfig.name} Sign in`,
           }
         };
       }
