@@ -1,0 +1,24 @@
+Origin: klr-office-wrappers
+Label: KLR Office Wrappers
+Suite: stable
+Codename: stable
+Architectures: amd64
+Components: main
+Description: Microsoft app wrappers for Linux
+Date: Thu, 15 Oct 2026 09:49:30 +0000
+MD5Sum:
+ 2528ac1127cd771c139dd297330437db              208 Release
+ c065ff49e33a12476d4e263ca43782a4             1499 main/binary-amd64/Packages
+ 9871aa06661df422ecd6df1f8e2dba47              650 main/binary-amd64/Packages.gz
+SHA1:
+ 8b141a895849a3537de7ef397c2bfbc75c98deeb              208 Release
+ d4402ac88b40e405200efff718c1e51e07a8ca6a             1499 main/binary-amd64/Packages
+ b380f7a416538321cac54069a22e820ce9336611              650 main/binary-amd64/Packages.gz
+SHA256:
+ f6b355490572a4ede8593f863534e26e210a0d9da0455bf48b7fd2379eafdf17              208 Release
+ cab4bed5fe5c5da2ad01f25fc8c35c2c83aac8988f9fd310d20e675cf7062900             1499 main/binary-amd64/Packages
+ 8bdca1fd840952103639acd518ff20d529b4b74cc6b58a03bd0955bc94fba433              650 main/binary-amd64/Packages.gz
+SHA512:
+ 01a36e3234586eb82ad79063652035968425e55898fa9b99d97360263d680c531f0d14765d5490c8fe7e6648f02e590a454adc46bb9a9edaeab6b0e21c06e93f              208 Release
+ 987be1d64412dcb11339d10bd0642e719c950209fdf59fa64360aa0ea4317469b61c8e67a3af6cda753269ca45dd4ae34aef300c692869db988b55e23dacacbf             1499 main/binary-amd64/Packages
+ 5214ae32f5eed7881e060eed729a5307741dff6c7dbb018139f8076442260921a5b6bfdbc8330702d036809012b683da310ddad13fb39487ede74aefdf124040              650 main/binary-amd64/Packages.gz
