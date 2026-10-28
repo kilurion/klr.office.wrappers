@@ -25,7 +25,7 @@ setupLogging();
  */
 const appConfig = require('./app-config.json');
 
-const {app, ipcMain, BrowserWindow, dialog, session, globalShortcut, net, Menu} = require('electron');
+const {app, ipcMain, BrowserWindow, dialog, session, globalShortcut, net, Menu, powerMonitor} = require('electron');
 const path = require('path');
 const windowStateKeeper = require('electron-window-state');
 const {validateIpcChannel, allowedChannels} = require('./security/ipcValidator');
@@ -909,7 +909,14 @@ if (!gotTheLock) {
 
       // Temporary: forward renderer console for DOM diagnostics
       mainWindow.webContents.on('console-message', ({ message }) => {
-        if (message && message.includes('[Outlook')) console.log(`[R] ${message}`);
+        if (message && (message.includes('[Outlook') || message.includes('[AudioRecovery]'))) console.log(`[R] ${message}`);
+      });
+
+      powerMonitor.on('resume', () => {
+        console.log('[Power] System resumed, checking audio output');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('system-resumed');
+        }
       });
 
       setInterval(() => {

@@ -8,6 +8,10 @@
 const { BrowserWindow, desktopCapturer, ipcMain } = require('electron');
 const path = require('path');
 
+function isWaylandPortalCapture() {
+  return process.platform === 'linux' && process.env.XDG_SESSION_TYPE === 'wayland';
+}
+
 // Store reference to active StreamSelector instance for IPC handlers
 let activeStreamSelector = null;
 
@@ -74,6 +78,14 @@ class StreamSelector {
       if (this.sources.length === 0) {
         console.error('[StreamSelector] No desktop sources available');
         this.handleSelection(null);
+        return;
+      }
+
+      // On Wayland getSources() already shows the xdg-desktop-portal picker and returns
+      // only the user's choice, so a second in-app picker would be redundant.
+      if (isWaylandPortalCapture() && this.sources.length === 1) {
+        console.log('[StreamSelector] Using source chosen in the system portal picker');
+        this.handleSelection({ id: this.sources[0].id, name: this.sources[0].name });
         return;
       }
 

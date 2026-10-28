@@ -92,6 +92,156 @@ try {
 
   ipcRenderer.send('preload-executed');
 
+  // Chromium suspends an AudioContext when its output device fails (Bluetooth switch,
+  // standby) and never restarts it; Teams keeps using that context, so calls stay silent.
+  function installAudioOutputRecovery() {
+    const NativeAudioContext = window.AudioContext;
+    if (!NativeAudioContext || window.__klrAudioRecovery) return;
+
+    const LOG = '[AudioRecovery]';
+    const MAX_ATTEMPTS = 8;
+    const proto = NativeAudioContext.prototype;
+    const nativeSuspend = proto.suspend;
+    const nativeResume = proto.resume;
+    const nativeSetSinkId = proto.setSinkId;
+
+    const contexts = new Set();
+    const pageSuspended = new WeakSet();
+    const failed = new WeakSet();
+    const attempts = new WeakMap();
+    const timers = new WeakMap();
+
+    proto.suspend = function () {
+      pageSuspended.add(this);
+      return nativeSuspend.apply(this, arguments);
+    };
+    proto.resume = function () {
+      pageSuspended.delete(this);
+      return nativeResume.apply(this, arguments);
+    };
+
+    function forEachContext(fn) {
+      for (const ref of contexts) {
+        const ctx = ref.deref();
+        if (!ctx || ctx.state === 'closed') {
+          contexts.delete(ref);
+        } else {
+          fn(ctx);
+        }
+      }
+    }
+
+    async function fallbackToDefaultSinkIfGone(ctx) {
+      const sinkId = ctx.sinkId;
+      if (!nativeSetSinkId || typeof sinkId !== 'string' || sinkId === '' || sinkId === 'default') return;
+      const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+      // Without media permission device ids are blank and the check is meaningless
+      if (outputs.length === 0 || outputs.some(d => !d.deviceId) || outputs.some(d => d.deviceId === sinkId)) return;
+      console.info(LOG, 'selected output device is gone, falling back to the system default');
+      await nativeSetSinkId.call(ctx, '');
+    }
+
+    async function recover(ctx, reason) {
+      timers.delete(ctx);
+      if (ctx.state !== 'suspended' || pageSuspended.has(ctx)) return;
+      attempts.set(ctx, (attempts.get(ctx) || 0) + 1);
+      try {
+        await fallbackToDefaultSinkIfGone(ctx);
+      } catch (e) {
+        console.warn(LOG, 'default sink fallback failed:', e && e.message);
+      }
+      if (ctx.state !== 'suspended' || pageSuspended.has(ctx)) return;
+      console.info(LOG, `resuming AudioContext after ${reason} (attempt ${attempts.get(ctx)})`);
+      // The promise only settles once audio renders again, so it is not awaited
+      nativeResume.call(ctx).catch(e => console.warn(LOG, 'resume failed:', e && e.message));
+    }
+
+    function schedule(ctx, reason, delay) {
+      clearTimeout(timers.get(ctx));
+      const attempt = attempts.get(ctx) || 0;
+      if (attempt >= MAX_ATTEMPTS) {
+        console.warn(LOG, 'output still failing, waiting for the next device change');
+        return;
+      }
+      const wait = delay ?? Math.min(500 * 2 ** attempt, 8000);
+      timers.set(ctx, setTimeout(() => recover(ctx, reason), wait));
+    }
+
+    function track(ctx) {
+      contexts.add(new WeakRef(ctx));
+      ctx.addEventListener('error', () => {
+        failed.add(ctx);
+        console.warn(LOG, `audio output device error (state: ${ctx.state})`);
+        schedule(ctx, 'device error');
+      });
+      ctx.addEventListener('sinkchange', () => {
+        if (failed.has(ctx)) {
+          attempts.delete(ctx);
+          schedule(ctx, 'output device change', 0);
+        }
+      });
+      ctx.addEventListener('statechange', () => {
+        if (ctx.state === 'running' && failed.has(ctx)) {
+          failed.delete(ctx);
+          attempts.delete(ctx);
+          console.info(LOG, 'audio output recovered');
+        }
+      });
+    }
+
+    function onEnvironmentChange(reason, restartRunning) {
+      forEachContext((ctx) => {
+        if (pageSuspended.has(ctx)) return;
+        if (ctx.state === 'suspended' && failed.has(ctx)) {
+          attempts.delete(ctx);
+          schedule(ctx, reason, 0);
+        } else if (restartRunning && ctx.state === 'running') {
+          // Stopping and starting the destination opens a fresh output stream
+          console.info(LOG, `restarting AudioContext output after ${reason}`);
+          nativeSuspend.call(ctx)
+            .then(() => nativeResume.call(ctx))
+            .catch(e => console.warn(LOG, 'restart failed:', e && e.message));
+        }
+      });
+    }
+
+    const WrappedAudioContext = new Proxy(NativeAudioContext, {
+      construct(target, args, newTarget) {
+        const ctx = Reflect.construct(target, args, newTarget);
+        track(ctx);
+        return ctx;
+      }
+    });
+    window.AudioContext = WrappedAudioContext;
+    if (window.webkitAudioContext === NativeAudioContext) {
+      window.webkitAudioContext = WrappedAudioContext;
+    }
+
+    if (navigator.mediaDevices) {
+      let deviceChangeTimer = null;
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        clearTimeout(deviceChangeTimer);
+        deviceChangeTimer = setTimeout(() => onEnvironmentChange('device change', false), 1000);
+      });
+    }
+
+    Object.defineProperty(window, '__klrAudioRecovery', {
+      value: Object.freeze({
+        // Audio devices need a moment to come back after wake-up
+        systemResumed: () => setTimeout(() => onEnvironmentChange('system resume', true), 2000)
+      })
+    });
+  }
+
+  if (typeof contextBridge.executeInMainWorld === 'function') {
+    contextBridge.executeInMainWorld({ func: installAudioOutputRecovery });
+    ipcRenderer.on('system-resumed', () => {
+      contextBridge.executeInMainWorld({
+        func: () => window.__klrAudioRecovery && window.__klrAudioRecovery.systemResumed()
+      });
+    });
+  }
+
   function throttle(callback, delay) {
     let lastCall = 0;
     return function(...args) {
