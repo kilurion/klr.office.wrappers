@@ -43,6 +43,7 @@ Types: deb
 URIs: https://kilurion.github.io/klr.office.wrappers
 Suites: stable
 Components: main
+Architectures: amd64
 Signed-By: /usr/share/keyrings/klr-office-wrappers.gpg
 EOF
 
